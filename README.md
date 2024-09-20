@@ -1,7 +1,3 @@
-Voici un exemple complet de README pour ton projet **Xew Xew** :
-
----
-
 # **Xew Xew**
 
 Xew Xew est une application de gestion d'événements en ligne. Elle permet aux utilisateurs de créer, modifier, supprimer et restaurer des événements. Les utilisateurs peuvent également acheter des billets pour des événements, gérer leurs portefeuilles, et consulter les transactions liées à leurs achats de billets. L'application prend en charge la gestion de différents types d'utilisateurs (utilisateurs anonymes et enregistrés).
@@ -18,7 +14,7 @@ Xew Xew est une application de gestion d'événements en ligne. Elle permet aux 
 - [API Endpoints](#api-endpoints)
 - [Utilisation](#utilisation)
 - [Contributeurs](#contributeurs)
-- [Licence](#licence)
+
 
 ---
 
