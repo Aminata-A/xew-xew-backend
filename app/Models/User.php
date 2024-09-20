@@ -19,18 +19,41 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
-        'password',
+        'phone',
+        'type',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    public function wallet(){
+        return $this->hasOne(Wallet::class);
+    }
+
+    public function transactions(){
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function tickets(){
+        return $this->hasMany(Ticket::class);
+    }
+
+    public function events(){
+        return $this->hasMany(Event::class);
+    }
+
+    public function registeredUsers(){
+        return $this->hasMany(RegisteredUser::class);
+    }
+
+    public function scopeRegistered($query)
+    {
+        return $query->where('type', 'registered');
+    }
+
+    public function scopeAnonymous($query)
+    {
+        return $query->where('type', 'anonymous');
+    }
+
+
 
     /**
      * Get the attributes that should be cast.
@@ -41,7 +64,6 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
         ];
     }
 }
