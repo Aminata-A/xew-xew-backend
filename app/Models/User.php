@@ -22,6 +22,10 @@ class User extends Authenticatable
         'password',
     ];
 
+    public function wallet(){
+        return $this->hasOne(Wallet::class);
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *
