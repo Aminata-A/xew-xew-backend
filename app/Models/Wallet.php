@@ -11,19 +11,23 @@ class Wallet extends Model
 
     protected $fillable = [
         'user_id',
-        'identifier',
+        'wallet_number',
         'name',
-        'phone_number',
         'balance'
     ];
 
-    public function user()
+    public function owner()
     {
         return $this->belongsTo(User::class);
     }
 
     public function transactions()
     {
-        return $this->hasMany(Transaction::class);
+        return $this->morphMany(Transaction::class, 'transactionable');
+    }
+
+    public function events()
+    {
+        return $this->belongsToMany(Event::class, 'event_payment_methods');
     }
 }

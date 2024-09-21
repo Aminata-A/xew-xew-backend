@@ -13,14 +13,7 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
             $table->decimal('amount', 8, 2);
-            $table->unsignedBigInteger('ticket_id');
-            $table->enum('type', ['debit', 'achat']);
-            $table->unsignedBigInteger('wallet_id');
-            $table->foreign('user_id')->references('id')->on('users');
-            $table->foreign('ticket_id')->references('id')->on('tickets');
-            $table->foreign('wallet_id')->references('id')->on('wallets');
             $table->timestamps();
         });
     }

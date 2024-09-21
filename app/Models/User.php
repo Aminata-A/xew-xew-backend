@@ -23,8 +23,8 @@ class User extends Authenticatable
         'type',
     ];
 
-    public function wallet(){
-        return $this->hasOne(Wallet::class);
+    public function userable(){
+        return $this->morphTo();
     }
 
     public function transactions(){
@@ -36,24 +36,8 @@ class User extends Authenticatable
     }
 
     public function events(){
-        return $this->hasMany(Event::class);
+        return $this->belongsToMany(Event::class, 'tickets');
     }
-
-    public function registeredUsers(){
-        return $this->hasMany(RegisteredUser::class);
-    }
-
-    public function scopeRegistered($query)
-    {
-        return $query->where('type', 'registered');
-    }
-
-    public function scopeAnonymous($query)
-    {
-        return $query->where('type', 'anonymous');
-    }
-
-
 
     /**
      * Get the attributes that should be cast.

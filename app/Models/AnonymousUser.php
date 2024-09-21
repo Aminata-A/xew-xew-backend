@@ -10,13 +10,8 @@ class AnonymousUser extends Model
 {
     use HasFactory;
 
-    protected $table = 'users';
-
-    protected static function boot()
+    public function user()
     {
-        parent::boot();
-        static::addGlobalScope('anonymous', function (Builder $builder) {
-            $builder->where('type', 'anonymous');
-        });
+        return $this->morphOne(User::class, 'userable');
     }
 }

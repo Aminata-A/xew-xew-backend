@@ -12,7 +12,6 @@ class Event extends Model
 
     protected $fillable = [
         'name',
-        'category_id',
         'date',
         'time',
         'location',
@@ -24,8 +23,21 @@ class Event extends Model
         'organizer_id',
     ];
 
-    public function category()
+    public function categories()
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsToMany(Category::class, 'categories_events');
+    }
+
+    public function wallets(){
+        return $this->belongsToMany(Wallet::class, 'event_payment_methods');
+    }
+
+    public function participants(){
+        return $this->belongsToMany(User::class, 'tickets');
+    }
+
+    public function organizer()
+    {
+        return $this->belongsTo(User::class, 'organizer_id');
     }
 }

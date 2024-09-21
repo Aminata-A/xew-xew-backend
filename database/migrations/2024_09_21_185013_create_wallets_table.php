@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('registered_users', function (Blueprint $table) {
+        Schema::create('wallets', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->string('password');
-            $table->enum('role', ['organizer', 'participant']);
+            $table->string('identifier');
+            $table->enum('name' , ['wave', 'orange_money', 'free_money']);
+            $table->string('wallet_number');
             $table->decimal('balance', 10, 2)->default(0);
-            $table->string('photo')->nullable();
-            $table->enum('status', ['active', 'inactive']);
             $table->foreign('user_id')->references('id')->on('users');
             $table->timestamps();
         });
@@ -29,8 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('registered_users');
-        Schema::dropIfExists('password_reset_tokens');
-        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('wallets');
     }
 };

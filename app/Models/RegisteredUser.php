@@ -11,7 +11,6 @@ class RegisteredUser extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
         'password',
         'role',
         'balance',
@@ -19,19 +18,13 @@ class RegisteredUser extends Model
         'status'
     ];
 
-    protected $table = 'users';
-
-
-    protected static function boot()
-    {
-        parent::boot();
-        static::addGlobalScope('registered', function (Builder $builder) {
-            $builder->where('type', 'registered');
-        });
-    }
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->morphOne(User::class, 'userable');
+    }
+
+    public function wallets(){
+        return $this->hasMany(Wallet::class);
     }
 
 

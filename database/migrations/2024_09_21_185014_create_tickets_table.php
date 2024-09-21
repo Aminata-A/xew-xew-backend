@@ -17,8 +17,10 @@ return new class extends Migration
             $table->decimal('price', 8, 2);
             $table->unsignedBigInteger('event_id');
             $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('wallet_id')->nullable();
             $table->foreign('event_id')->references('id')->on('events');
             $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('wallet_id')->references('id')->on('wallets');
             $table->timestamps();
         });
     }

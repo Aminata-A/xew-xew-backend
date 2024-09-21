@@ -11,14 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('wallets', function (Blueprint $table) {
+        Schema::create('categorie_events', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->string('identifier');
-            $table->string('name');
-            $table->string('phone_number');
-            $table->decimal('balance', 10, 2)->default(0);
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->unsignedBigInteger('event_id');
+            $table->unsignedBigInteger('category_id');
+            $table->foreign('event_id')->references('id')->on('events');
+            $table->foreign('category_id')->references('id')->on('categories');
             $table->timestamps();
         });
     }
@@ -28,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('wallets');
+        Schema::dropIfExists('categorie_events');
     }
 };

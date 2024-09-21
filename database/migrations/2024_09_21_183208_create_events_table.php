@@ -14,28 +14,24 @@ return new class extends Migration
         Schema::create('events', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->text('description');
-            $table->string('banner');
-            $table->integer('ticket_quantity');
-            $table->decimal('ticket_price', 8, 2);
-            $table->dateTime('date');
-            $table->time('time');
+            $table->string('description');
             $table->string('location');
-            $table->enum('event_status', ['publier', 'brouillon', 'supprimé']);
+            $table->date('date');
+            $table->time('time');
+            $table->string('banner');
+            $table->enum('event_status', ['publier', 'brouillon', 'archiver', 'annuler', 'supprimer']);
             $table->unsignedBigInteger('organizer_id');
             $table->foreign('organizer_id')->references('id')->on('users');
-            $table->timestamps();
             $table->softDeletes();
+            $table->timestamps();
         });
     }
 
     /**
      * Reverse the migrations.
      */
-    public function down()
+    public function down(): void
     {
-        Schema::table('events', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
+        Schema::dropIfExists('events');
     }
 };

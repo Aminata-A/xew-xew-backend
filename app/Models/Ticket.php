@@ -9,12 +9,19 @@ class Ticket extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'event_id',
+        'user_id',
+        'price',
+        'wallet_id',
+    ];
+
     public function event()
     {
         return $this->belongsTo(Event::class);
     }
 
-    public function user()
+    public function participant()
     {
         return $this->belongsTo(User::class);
     }
@@ -22,5 +29,10 @@ class Ticket extends Model
     public function wallet()
     {
         return $this->belongsTo(Wallet::class);
+    }
+
+    public function transaction()
+    {
+        return $this->morphOne(Transaction::class, 'transactionable');
     }
 }
