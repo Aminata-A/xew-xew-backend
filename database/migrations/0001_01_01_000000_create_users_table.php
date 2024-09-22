@@ -15,8 +15,10 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('phone');
-            $table->enum('type', ['registered', 'anonymous']);
+            $table->string('phone')->nullable();
+            $table->unsignedBigInteger('userable_id');  // Clé polymorphique
+            $table->string('userable_type');  // Type polymorphique
+            // $table->enum('type', ['registered', 'anonymous']);
             $table->rememberToken();
             $table->timestamps();
         });

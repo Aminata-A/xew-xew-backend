@@ -1,16 +1,18 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\User;
+use Tymon\JWTAuth\JWT;
 use App\Models\RegisteredUser;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Validator;
 use App\Http\Requests\StoreRegisteredUserRequest;
 use App\Http\Requests\UpdateRegisteredUserRequest;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         //
@@ -27,7 +29,7 @@ class RegisteredUserController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreRegisteredUserRequest $request)
+    public function store(Request $request)
     {
         //
     }
