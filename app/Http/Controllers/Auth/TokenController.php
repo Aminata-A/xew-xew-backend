@@ -20,8 +20,7 @@ class TokenController extends Controller
 
     public function createCustomToken(array $payload)
     {
- 
-
+        
         // Use PayloadFactory to create the payload
         $payload = $this->payloadFactory->make($payload);
 
