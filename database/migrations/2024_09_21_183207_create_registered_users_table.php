@@ -13,13 +13,11 @@ return new class extends Migration
     {
         Schema::create('registered_users', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
             $table->string('password');
-            $table->enum('role', ['organizer', 'participant']);
+            $table->enum('role', ['organizer', 'participant'])->default('participant');
             $table->decimal('balance', 10, 2)->default(0);
             $table->string('photo')->nullable();
-            $table->enum('status', ['active', 'inactive']);
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });
         Schema::create('password_reset_tokens', function (Blueprint $table) {

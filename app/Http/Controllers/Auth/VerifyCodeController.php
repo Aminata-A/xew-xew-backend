@@ -12,12 +12,7 @@ use Illuminate\Support\Facades\Redis;
 
 class VerifyCodeController extends Controller
 {
-    private $jwtSecret;
 
-    public function __construct()
-    {
-        $this->jwtSecret = env('JWT_SECRET');
-    }
     public function verifyCode(Request $request)
     {
         $email = $request->input('email');
@@ -54,16 +49,24 @@ class VerifyCodeController extends Controller
 
     private function generateRegisterJWT($email)
     {
+
+
+        $jwtSecret = config('jwt.secret');
+
         // Define the payload for the JWT
         $payload = [
-            'iss' => 'your_app_name', // Issuer of the token (your app)
+            'iss' => 'xew_xew', // Issuer of the token (your app)
             'email' => $email,        // The email of the user
             'iat' => time(),          // Issued at timestamp
-            'exp' => time() + 3600    // Expiration time (1 hour)
+            // 'exp' => time() + 3600    // Expiration time (1 hour)
+            'exp' => time() + 86400    // Expiration time (1 day pour test )
         ];
 
-        // Encode the payload into a JWT token
-        $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
+
+        // Encoder le payload en JWT
+        $jwt = JWT::encode($payload, $jwtSecret, 'HS256');
+
+
 
         return $jwt;
     }
