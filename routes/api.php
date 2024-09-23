@@ -34,9 +34,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
     Route::get('events/trash', [EventController::class, 'trash']);
     Route::apiResource('categories', CategoryController::class);
+    Route::resource( 'wallets', WalletController::class);
 
 });
-Route::resource('wallets', WalletController::class);
 
 Route::apiResource('events', EventController::class)->only(['index', 'show']);
 

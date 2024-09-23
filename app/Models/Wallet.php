@@ -13,7 +13,8 @@ class Wallet extends Model
         'user_id',
         'wallet_number',
         'name',
-        'balance'
+        'balance',
+        'identifier',
     ];
 
     public function owner()

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->string('identifier');
+            $table->number('identifier');
             $table->enum('name' , ['wave', 'orange_money', 'free_money']);
             $table->string('wallet_number');
             $table->decimal('balance', 10, 2)->default(0);
