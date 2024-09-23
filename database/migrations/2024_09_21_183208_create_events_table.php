@@ -19,9 +19,11 @@ return new class extends Migration
             $table->date('date');
             $table->time('time');
             $table->string('banner');
-            $table->enum('event_status', ['publier', 'brouillon', 'archiver', 'annuler', 'supprimer']);
+            $table->integer('ticket_quantity');
+            $table->decimal('ticket_price', 10, 2);
+            $table->enum('event_status', ['publier', 'brouillon', 'archiver', 'annuler', 'supprimer'])->default('brouillon');
             $table->unsignedBigInteger('organizer_id');
-            $table->foreign('organizer_id')->references('id')->on('users');
+            $table->foreign('organizer_id')->references('id')->on('registered_users');
             $table->softDeletes();
             $table->timestamps();
         });

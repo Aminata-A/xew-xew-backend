@@ -13,8 +13,9 @@ return new class extends Migration
     {
         Schema::create('tickets', function (Blueprint $table) {
             $table->id();
-            // $table->string('type');
-            $table->decimal('price', 8, 2);
+            $table->boolean('is_paid')->default(false);
+            $table->string('url_payment')->nullable();
+            $table->string('naboo_order_id')->nullable();
             $table->unsignedBigInteger('event_id');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('wallet_id')->nullable();

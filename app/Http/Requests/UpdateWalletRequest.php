@@ -11,7 +11,7 @@ class UpdateWalletRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,10 @@ class UpdateWalletRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name' => 'required|string',
+            'wallet_number' => 'required|integer',
+            'balance' => 'required|numeric',
+            'identifier' => 'required|integer', 
         ];
     }
 }
