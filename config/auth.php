@@ -44,6 +44,11 @@ return [
             'driver' => 'session',
             'provider' => 'registered_users',
         ],
+        'api' => [
+            'driver' => 'jwt',
+            'provider' => 'users',
+            'hash' => false,
+        ],
     ],
 
     /*

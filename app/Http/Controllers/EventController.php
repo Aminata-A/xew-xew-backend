@@ -27,31 +27,29 @@ class EventController extends Controller
     }
 
     // Créer un nouvel événement
-    public function store(StoreEventRequest $request)
-    {
-        $user = JWTAuth::parseToken()->authenticate();
-
-        // Vérifiez si l'utilisateur est authentifié
-        if (!Auth::check()) {
-            return response()->json(['message' => 'Non autorisé'], 401);
-        }
-
-        // Obtenir l'ID de l'utilisateur connecté
-        $userId = $user->id;
-
-        // Valider les données de la requête entrante
-        $validatedData = $request->validated();
-
-        // Créer un nouvel événement en ajoutant l'organizer_id
-        $event = Event::create(array_merge($validatedData, ['organizer_id' => $userId]));
-
-        // Gérer les catégories si nécessaire
-        if (isset($validatedData['categories'])) {
-            $event->categories()->sync($validatedData['categories']);
-        }
-
-        return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
+    // Créer un nouvel événement
+public function store(StoreEventRequest $request)
+{
+    // Authentifier l'utilisateur
+    $user = Auth::user();
+    if (!$user) {
+        return response()->json(['message' => 'Non autorisé'], 401);
     }
+
+    // Valider les données de la requête
+    $validatedData = $request->validated();
+
+    // Créer un nouvel événement en ajoutant l'ID de l'organisateur
+    $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
+
+    // Gérer les catégories si elles sont présentes dans la requête
+    if (isset($validatedData['categories'])) {
+        $event->categories()->sync($validatedData['categories']);
+    }
+
+    return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
+}
+
 
 
     // Voir les détails d'un événement
@@ -67,29 +65,31 @@ class EventController extends Controller
     }
 
     // Modifier un événement (uniquement si c'est le créateur)
-    public function update(UpdateEventRequest $request, $id)
-    {
-        // Authentifier l'utilisateur via le token JWT
-        $user = JWTAuth::parseToken()->authenticate();
+    // Modifier un événement (uniquement si c'est le créateur)
+public function update(UpdateEventRequest $request, $id)
+{
+    // Authentifier l'utilisateur
+    $user = JWTAuth::parseToken()->authenticate();
 
-        // Trouver l'événement par son ID
-        $event = Event::findOrFail($id);
+    // Trouver l'événement par son ID
+    $event = Event::findOrFail($id);
 
-        // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
-        if ($event->organizer_id != $user->id) {
-            return response()->json(['erreur' => "Vous n'êtes pas autorisé à modifier cet événement"], 403);
-        }
-
-        // Mettre à jour l'événement avec les données validées
-        $event->update($request->validated());
-
-        // Gérer les catégories si elles sont présentes dans la requête
-        if ($request->has('categories')) {
-            $event->categories()->sync($request->categories);
-        }
-
-        return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
+    // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
+    if ($event->organizer_id != $user->id) {
+        return response()->json(['erreur' => "Vous n'êtes pas autorisé à modifier cet événement"], 403);
     }
+
+    // Mettre à jour l'événement avec les données validées
+    $event->update($request->validated());
+
+    // Gérer les catégories si elles sont présentes dans la requête
+    if ($request->has('categories')) {
+        $event->categories()->sync($request->categories);
+    }
+
+    return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
+}
+
 
 
     // Supprimer un événement (uniquement si c'est le créateur)
@@ -104,7 +104,7 @@ class EventController extends Controller
         if (!$event) {
             return response()->json(['erreur' => 'Événement non trouvé'], 404);
         }
-        
+
         // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
         if ($event->organizer_id != $user->id) {
             return response()->json(['erreur' => "Vous n'êtes pas autorisé à supprimer cet événement"], 403);

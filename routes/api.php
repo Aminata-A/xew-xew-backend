@@ -28,7 +28,7 @@ Route::prefix('auth')->group(function () {
 });
 
 // Routes pour les evenements
-Route::middleware(['auth'])->group(function () {
+Route::middleware('auth:api')->group(function () {
     Route::apiResource('events', EventController::class)->only(['store', 'update', 'destroy']);
     Route::post('events/{event}/restore', [EventController::class, 'restore']);
     Route::post('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
