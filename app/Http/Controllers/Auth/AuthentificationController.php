@@ -152,7 +152,4 @@ public function login(Request $request)
 
     return response()->json(['message' => 'Connexion réussie', 'token' => $token], 200);
 }
-
-
-
 }
