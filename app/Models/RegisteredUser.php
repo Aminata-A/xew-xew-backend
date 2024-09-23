@@ -31,6 +31,9 @@ class RegisteredUser extends Authenticatable implements JWTSubject
         'status'
     ];
 
+    // public function event(){
+    //     return $this->belongsToMany(Event::class, 'tickets');
+    // }
     public function user()
     {
         return $this->morphOne(User::class, 'userable');

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('name' , ['wave', 'orange_money', 'free_money']);
             $table->string('wallet_number');
             $table->decimal('balance', 10, 2)->default(0);
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('user_id')->references('id')->on('registered_users');
             $table->timestamps();
         });
     }

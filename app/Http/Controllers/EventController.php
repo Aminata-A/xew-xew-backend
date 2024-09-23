@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreEventRequest;
+use App\Http\Requests\UpdateEventRequest;
 
 
 class EventController extends Controller
@@ -15,58 +18,41 @@ class EventController extends Controller
     // Lister tous les événements
     public function index()
     {
-    // Récupérer tous les événements qui ne sont pas supprimés de manière soft (pas de deleted_at)
-    $events = Event::whereNull('deleted_at')
-                   ->where('event_status', '!=', 'supprimer')
-                   ->get();
+        // Récupérer tous les événements qui ne sont pas supprimés de manière soft (pas de deleted_at)
+        $events = Event::whereNull('deleted_at')
+        ->where('event_status', '!=', 'supprimer')
+        ->get();
 
-    return response()->json($events);
+        return response()->json($events);
     }
 
     // Créer un nouvel événement
-    public function store(Request $request)
+    public function store(StoreEventRequest $request)
     {
+        $user = JWTAuth::parseToken()->authenticate();
 
-        // Validation des champs
-        // $validatedData = $request->validate([
-        //     'name' => 'required|string|max:255',
-        //     'description' => 'required|string',
-        //     'date' => 'required|date_format:d/m/Y',
-        //     'time' => 'required|date_format:H:i',
-        //     'banner' => 'required|url',
-        //     'location' => 'required|string|max:255',
-        //     'ticket_quantity' => 'required|integer',
-        //     'ticket_price' => 'required|numeric',
-        //     'event_status' => 'required|string',
-        //     'categories' => 'required|array', // categories must be an array
-        //     'categories.*' => 'exists:categories,id' // each category must exist in the categories table
-        // ]);
+        // Vérifiez si l'utilisateur est authentifié
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Non autorisé'], 401);
+        }
 
-        // // Début de la transaction
-        // DB::beginTransaction();
+        // Obtenir l'ID de l'utilisateur connecté
+        $userId = $user->id;
 
-        try {
-            // Créer un nouvel événement
-            $event = Event::create($request->all());
+        // Valider les données de la requête entrante
+        $validatedData = $request->validated();
 
-            // Associer les catégories via la table pivot
-            $event->categories()->sync($request->categories);
+        // Créer un nouvel événement en ajoutant l'organizer_id
+        $event = Event::create(array_merge($validatedData, ['organizer_id' => $userId]));
 
-            // Commit de la transaction si tout est OK
-            DB::commit();
+        // Gérer les catégories si nécessaire
+        if (isset($validatedData['categories'])) {
+            $event->categories()->sync($validatedData['categories']);
+        }
 
-            return response()->json([
-                'message' => 'Événement créé avec succès',
-                'event' => $event
-            ], 201);
-
-        } catch (\Exception $e) {
-            echo $e;
-            // Rollback en cas d'erreur
-            DB::rollBack();
-            return response()->json(['error' => 'Erreur lors de la création de l\'événement'], 500);
-        };
+        return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
     }
+
 
     // Voir les détails d'un événement
     public function show($id)
@@ -81,84 +67,73 @@ class EventController extends Controller
     }
 
     // Modifier un événement (uniquement si c'est le créateur)
-    public function update(Request $request, $id)
-{
-    // Get the authenticated user
-    $user = Auth::user();
+    public function update(UpdateEventRequest $request, $id)
+    {
+        // Authentifier l'utilisateur via le token JWT
+        $user = JWTAuth::parseToken()->authenticate();
 
-    // Find the event by its ID
-    $event = Event::find($id );
+        // Trouver l'événement par son ID
+        $event = Event::findOrFail($id);
 
-    // Check if the event exists
-    if (!$event) {
-        // dd($event);
-        return response()->json(['erreur' => 'Événement non trouvé'], 404);
+        // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
+        if ($event->organizer_id != $user->id) {
+            return response()->json(['erreur' => "Vous n'êtes pas autorisé à modifier cet événement"], 403);
+        }
+
+        // Mettre à jour l'événement avec les données validées
+        $event->update($request->validated());
+
+        // Gérer les catégories si elles sont présentes dans la requête
+        if ($request->has('categories')) {
+            $event->categories()->sync($request->categories);
+        }
+
+        return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
     }
-
-    // Check if the authenticated user is the organizer of the event
-    if ($event->organizer_id != 1) {
-        return response()->json(['erreur' => "Vous n'êtes pas autorisé à modifier cet événement"], 403);
-    }
-
-    // // Validate the request data
-    // $validatedData = $request->validate([
-    //     'name' => 'sometimes|required|string|max:255',
-    //     'date' => 'sometimes|required|date',
-    //     'time' => 'sometimes|required',
-    //     'location' => 'sometimes|required|string|max:255',
-    //     'event_status' => 'sometimes|required|in:publier,brouillon,archiver,annuler,supprimer',
-    //     'description' => 'nullable|string',
-    //     'banner' => 'nullable|string',
-    //     'ticket_quantity' => 'sometimes|required|integer|min:1',
-    //     'ticket_price' => 'sometimes|required|numeric|min:0',
-    //     'categories' => 'sometimes|array',
-    //     'categories.*' => 'exists:categories,id' // Ensure that each category exists
-    // ]);
-
-    // Update the event with the validated data
-    $event->update($request->all());
-
-    // Sync categories (replaces existing ones with new ones if provided)
-    if ($request->has('categories')) {
-        $event->categories()->sync($request->categories);
-    }
-
-    return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
-}
 
 
     // Supprimer un événement (uniquement si c'est le créateur)
     public function destroy($id)
     {
-        // $user = Auth::user();
-        $event = Event::find($id);
+        $user = JWTAuth::parseToken()->authenticate();
 
+        // Chercher l'événement par son ID
+        $event = Event::findOrFail($id);
+
+        // Vérifier si l'événement existe
         if (!$event) {
             return response()->json(['erreur' => 'Événement non trouvé'], 404);
         }
-
-        // Vérifier que l'utilisateur connecté est bien le créateur de l'événement
-        // $user->id == $event->organizer_id
-        if ($event->organizer_id != 1) {
+        
+        // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
+        if ($event->organizer_id != $user->id) {
             return response()->json(['erreur' => "Vous n'êtes pas autorisé à supprimer cet événement"], 403);
         }
 
-        // Soft delete the event
+        // Soft delete de l'événement (suppression logique)
         $event->delete();
 
         return response()->json(['message' => 'Événement supprimé avec succès'], 200);
     }
 
 
+
     // faire un softdelete
     public function restore($id)
     {
+        $user = JWTAuth::parseToken()->authenticate();
+
         // Chercher l'événement dans la table avec les éléments supprimés
         $event = Event::onlyTrashed()->where('id', $id)->first();
 
         // Vérifier si l'événement existe
         if (!$event) {
             return response()->json(['erreur' => 'Événement non trouvé ou non supprimé'], 404);
+        }
+
+        // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
+        if ($event->organizer_id != $user->id) {
+            return response()->json(['erreur' => "Vous n'êtes pas autorisé à restaurer cet événement"], 403);
         }
 
         // Récupérer (restaurer) l'événement supprimé
@@ -168,18 +143,41 @@ class EventController extends Controller
     }
 
 
+
     // Lister tous les événements supprimés
     public function trash()
     {
-        $events = Event::onlyTrashed()->get();
+        $user = JWTAuth::parseToken()->authenticate();
+
+        // Récupérer tous les événements supprimés créés par l'utilisateur connecté
+        $events = Event::onlyTrashed()->where('organizer_id', $user->id)->get();
+
         return response()->json($events);
     }
+
 
     // forcement supprimer un événement
     public function forceDestroy($id)
     {
+        $user = JWTAuth::parseToken()->authenticate();
+
+        // Chercher l'événement, y compris ceux qui sont supprimés de manière soft
         $event = Event::withTrashed()->where('id', $id)->first();
+
+        // Vérifier si l'événement existe
+        if (!$event) {
+            return response()->json(['erreur' => 'Événement non trouvé'], 404);
+        }
+
+        // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
+        if ($event->organizer_id != $user->id) {
+            return response()->json(['erreur' => "Vous n'êtes pas autorisé à supprimer définitivement cet événement"], 403);
+        }
+
+        // Supprimer définitivement l'événement
         $event->forceDelete();
-        return response()->json(['message' => 'Événement supprimé avec succès', 'event' => $event], 200);
+
+        return response()->json(['message' => 'Événement supprimé définitivement avec succès'], 200);
     }
+
 }

@@ -4,6 +4,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\Auth\VerifyCodeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
@@ -27,11 +28,15 @@ Route::prefix('auth')->group(function () {
 });
 
 // Routes pour les evenements
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth'])->group(function () {
+    Route::apiResource('events', EventController::class)->only(['store', 'update', 'destroy']);
+    Route::post('events/{event}/restore', [EventController::class, 'restore']);
+    Route::post('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
+    Route::get('events/trash', [EventController::class, 'trash']);
+    Route::apiResource('categories', CategoryController::class);
+
 });
-Route::apiResource('events', EventController::class)->only(['index', 'store', 'update', 'destroy']);
-Route::post('events/{event}/restore', [EventController::class, 'restore']);
-Route::post('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
-Route::get('events/trash', [EventController::class, 'trash']);
+Route::resource('wallets', WalletController::class);
+
 Route::apiResource('events', EventController::class)->only(['index', 'show']);
-Route::apiResource('categories', CategoryController::class);
+

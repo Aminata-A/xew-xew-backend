@@ -38,6 +38,6 @@ class Event extends Model
 
     public function organizer()
     {
-        return $this->belongsTo(User::class, 'organizer_id');
+        return $this->belongsTo(RegisteredUser::class, 'organizer_id');
     }
 }

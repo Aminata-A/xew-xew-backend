@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('registered_users', function (Blueprint $table) {
             $table->id();
             $table->string('password');
-            $table->enum('role', ['organizer', 'participant'])->default('participant');
+            $table->enum('role', ['organizer', 'participant', 'admin'])->default('participant');
             $table->decimal('balance', 10, 2)->default(0);
             $table->string('photo')->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
