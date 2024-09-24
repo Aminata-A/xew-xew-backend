@@ -28,7 +28,7 @@ class EventController extends Controller
 
     // Créer un nouvel événement
     // Créer un nouvel événement
-public function store(StoreEventRequest $request)
+    public function store(StoreEventRequest $request)
 {
     // Authentifier l'utilisateur
     $user = Auth::user();
@@ -36,19 +36,20 @@ public function store(StoreEventRequest $request)
         return response()->json(['message' => 'Non autorisé'], 401);
     }
 
-    // Valider les données de la requête
-    $validatedData = $request->validated();
+    // Récupérer les données de la requête JSON
+    $data = $request->json()->all();
 
     // Créer un nouvel événement en ajoutant l'ID de l'organisateur
-    $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
+    $event = Event::create(array_merge($data, ['organizer_id' => $user->id]));
 
     // Gérer les catégories si elles sont présentes dans la requête
-    if (isset($validatedData['categories'])) {
-        $event->categories()->sync($validatedData['categories']);
+    if (isset($data['categories'])) {
+        $event->categories()->sync($data['categories']);
     }
 
     return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
 }
+
 
 
 
@@ -66,29 +67,34 @@ public function store(StoreEventRequest $request)
 
     // Modifier un événement (uniquement si c'est le créateur)
     // Modifier un événement (uniquement si c'est le créateur)
-public function update(UpdateEventRequest $request, $id)
-{
-    // Authentifier l'utilisateur
-    $user = JWTAuth::parseToken()->authenticate();
+    public function update(StoreEventRequest $request, $id)
+    {
+        // Authentifier l'utilisateur
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Non autorisé'], 401);
+        }
 
-    // Trouver l'événement par son ID
-    $event = Event::findOrFail($id);
+        // Récupérer les données de la requête JSON
+        $data = $request->json()->all();
 
-    // Vérifier que l'utilisateur connecté est bien l'organisateur de l'événement
-    if ($event->organizer_id != $user->id) {
-        return response()->json(['erreur' => "Vous n'êtes pas autorisé à modifier cet événement"], 403);
+        // Trouver l'événement par ID
+        $event = Event::find($id);
+        if (!$event) {
+            return response()->json(['message' => 'Événement non trouvé'], 404);
+        }
+
+        // Mettre à jour l'événement avec les nouvelles données
+        $event->update(array_merge($data, ['organizer_id' => $user->id]));
+
+        // Gérer les catégories si elles sont présentes dans la requête
+        if (isset($data['categories'])) {
+            $event->categories()->sync($data['categories']);
+        }
+
+        return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
     }
 
-    // Mettre à jour l'événement avec les données validées
-    $event->update($request->validated());
-
-    // Gérer les catégories si elles sont présentes dans la requête
-    if ($request->has('categories')) {
-        $event->categories()->sync($request->categories);
-    }
-
-    return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
-}
 
 
 

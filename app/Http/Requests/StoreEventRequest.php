@@ -11,19 +11,19 @@ class StoreEventRequest extends FormRequest
         return true; // Autoriser par défaut
     }
 
-    public function rules()
+    public function validatedData()
     {
         return [
-            // 'name' => 'required|string|max:255',
-            // 'date' => 'required|date',
-            // 'time' => 'required',
-            // 'location' => 'required|string|max:255',
-            // 'event_status' => 'required|in:publier,brouillon,archiver,annuler,supprimer',
-            // 'description' => 'nullable|string',
-            // 'banner' => 'nullable|string',
-            // 'ticket_quantity' => 'required|integer|min:1',
-            // 'ticket_price' => 'required|numeric|min:0',
-            // 'categories' => 'array|exists:categories,id',
+            'name' => 'required|string|max:255',
+            'date' => 'required|date',
+            'time' => 'required',
+            'location' => 'required|string|max:255',
+            'event_status' => 'required|in:publier,brouillon,archiver,annuler,supprimer',
+            'description' => 'nullable|string',
+            'banner' => 'nullable|string',
+            'ticket_quantity' => 'required|integer|min:1',
+            'ticket_price' => 'required|numeric|min:0',
+            'categories' => 'array|exists:categories,id',
             // 'organizer_id' => 'required|exists:registered_users,id',
         ];
     }
