@@ -24,6 +24,7 @@ class StoreEventRequest extends FormRequest
             'ticket_quantity' => 'required|integer|min:1',
             'ticket_price' => 'required|numeric|min:0',
             'categories' => 'array|exists:categories,id',
+            'wallets' => 'array|exists:wallets,id',
             // 'organizer_id' => 'required|exists:registered_users,id',
         ];
     }

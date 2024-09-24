@@ -9,7 +9,7 @@ class EventPaymentMethod extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['event_id', 'payment_method_id'];
+    protected $fillable = ['event_id', 'wallet_id'];
 
     public function event()
     {

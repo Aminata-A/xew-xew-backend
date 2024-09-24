@@ -27,7 +27,6 @@ class EventController extends Controller
     }
 
     // Créer un nouvel événement
-    // Créer un nouvel événement
     public function store(StoreEventRequest $request)
 {
     // Authentifier l'utilisateur
@@ -44,7 +43,12 @@ class EventController extends Controller
 
     // Gérer les catégories si elles sont présentes dans la requête
     if (isset($data['categories'])) {
-        $event->categories()->sync($data['categories']);
+        $event->categories()->sync($data['categories']);  // Sync multiple categories
+    }
+
+    // Gérer les portefeuilles si ils sont présents dans la requête (table pivot EventPaymentMethod)
+    if (isset($data['wallets'])) {
+        $event->wallets()->sync($data['wallets']);  // Sync multiple wallets
     }
 
     return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
@@ -66,8 +70,7 @@ class EventController extends Controller
     }
 
     // Modifier un événement (uniquement si c'est le créateur)
-    // Modifier un événement (uniquement si c'est le créateur)
-    public function update(StoreEventRequest $request, $id)
+    public function update(UpdateEventRequest $request, $id)
     {
         // Authentifier l'utilisateur
         $user = Auth::user();
@@ -92,8 +95,14 @@ class EventController extends Controller
             $event->categories()->sync($data['categories']);
         }
 
+        // Gérer les portefeuilles si ils sont présents dans la requête (table pivot EventPaymentMethod)
+        if (isset($data['wallets'])) {
+            $event->wallets()->sync($data['wallets']);
+        }
+
         return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
     }
+
 
 
 
