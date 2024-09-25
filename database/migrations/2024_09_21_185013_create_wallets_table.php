@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->integer('identifier');
-            $table->enum('name' , ['wave', 'orange_money', 'free_money']);
+            $table->enum('name' , ['WAVE', 'ORANGE_MONEY', 'FREE_MONEY']);
             $table->string('wallet_number');
             $table->decimal('balance', 10, 2)->default(0);
             $table->foreign('user_id')->references('id')->on('registered_users');
