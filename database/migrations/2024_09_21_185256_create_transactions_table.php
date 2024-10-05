@@ -12,9 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transactions', function (Blueprint $table) {
-            $table->id();
-            $table->decimal('amount', 8, 2);
-            $table->timestamps();
+
         });
     }
 

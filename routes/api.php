@@ -12,37 +12,39 @@ use App\Http\Controllers\Auth\VerifyCodeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Auth\AuthentificationController;
 
+// Routes publiques pour les authentifications
+Route::post('auth/register', [AuthentificationController::class, 'register'])->name('register');
+Route::post('auth/login', [AuthentificationController::class, 'login'])->name('login');
 
-// Routes pour les authentifications
-Route::middleware('auth:sanctum')->prefix('auth:api')->group(function () {
-    // Routes pour la verification de l'email
-    Route::post('verify-email', [VerifyEmailController::class, 'verify']);
-    // Routes pour la verification du code
-    Route::post('verify-code', [VerifyCodeController::class, 'verifyCode']);
-    // Routes pour l'inscription de l'utilisateur
-    Route::post('register', [AuthentificationController::class, 'register'])->name('register');
-    // Routes pour la connexion de l'utilisateur
-    Route::post('login', [AuthentificationController::class, 'login'])->name('login');
-});
+// Routes pour la vérification de l'email et du code
+Route::post('auth/verify-email', [VerifyEmailController::class, 'verify']);
+Route::post('auth/verify-code', [VerifyCodeController::class, 'verifyCode']);
 
-// Routes protegées par le token
+// Routes protégées par le token (auth:api)
 Route::middleware('auth:api')->group(function () {
-    // Routes pour les evenements (Creation, Modification, Suppression)
+    // Routes pour les événements (Création, Modification, Suppression)
     Route::apiResource('events', EventController::class)->only(['store', 'update', 'destroy']);
-    // Routes pour la restauration d'un evenement supprimé
+
+    // Route pour restaurer un événement supprimé
     Route::post('events/{event}/restore', [EventController::class, 'restore']);
-    // Routes pour la suppression definitive d'un evenement
-    Route::post('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
-    // Routes pour l'archivage d'un evenement
+
+    // Route pour supprimer définitivement un événement
+    Route::delete('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
+
+    // Route pour afficher les événements archivés
     Route::get('events/trash', [EventController::class, 'trash']);
-    // Routes pour les categories
+
+    // Routes pour les catégories
     Route::apiResource('categories', CategoryController::class);
-    // Routes pour les porte feuilles(creation, Modification, suppression)
-    Route::resource( 'wallets', WalletController::class);
+
+    // Routes pour les portefeuilles (Création, Modification, Suppression)
+    Route::apiResource('wallets', WalletController::class);
+
+    // Routes pour afficher les billets pour un utilisateur connecté
+    Route::get('tickets', [TicketController::class, 'index']);
 });
 
-// Routes pour les billets (creation)
-Route::post('tickets', [TicketController::class, 'store']);
-// Routes pour les evenements (lister, voir)
-Route::apiResource('events', EventController::class)->only(['index', 'show']);
 
+// Routes publiques pour les billets et événements (Consultation)
+Route::post('tickets', [TicketController::class, 'store']);
+Route::apiResource('events', EventController::class)->only(['index', 'show']);
