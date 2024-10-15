@@ -12,7 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transactions', function (Blueprint $table) {
+            $table->id();
+            $table->decimal('amount', 10, 2);
+            $table->string('status')->default('pending'); // pour gérer les statuts : 'pending', 'success', 'failed'
+            $table->string('order_id')->nullable();
+            $table->unsignedBigInteger('user_id');
+            $table->morphs('transactionable'); // Pour relier la transaction à plusieurs modèles (e.g. tickets, services, etc.)
+            $table->timestamps();
 
+            $table->foreign('user_id')->references('id')->on('users');
         });
     }
 

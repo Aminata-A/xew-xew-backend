@@ -23,7 +23,6 @@ class WalletController extends Controller
     }
 
     // Créer un nouveau portefeuille
-    // Créer un nouveau portefeuille
     public function store(StoreWalletRequest $request)
     {
         // Authenticate the user via JWT
@@ -37,11 +36,22 @@ class WalletController extends Controller
         // Validation de la requête
         $validatedData = $request->validated();
 
-        // Create wallet and associate it with the authenticated user
+        // Forcer la majuscule pour le nom du portefeuille et s'assurer qu'il correspond à l'énumération
+        $validatedData['name'] = strtoupper($validatedData['name']);
+
+        // Vérification que le nom est valide (optionnelle mais utile)
+        if (!in_array($validatedData['name'], ['WAVE', 'ORANGE_MONEY', 'FREE_MONEY'])) {
+            return response()->json(['message' => 'Nom du portefeuille invalide'], 400);
+        }
+
+        // Créer le portefeuille et l'associer à l'utilisateur authentifié
         $wallet = Wallet::create(array_merge($validatedData, ['user_id' => $user->id]));
 
         return response()->json(['message' => 'Portefeuille créé avec succès', 'wallet' => $wallet], 201);
     }
+
+
+
 
 
     // Voir les détails d'un portefeuille

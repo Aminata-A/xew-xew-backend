@@ -17,6 +17,7 @@ class VerifyEmailController extends Controller
         $id = null;
         // Retrieve email from the request
         $email = $request->input(key: 'email');
+        // dd($email);
 
         // Check if email is provided
         if (!$email) {

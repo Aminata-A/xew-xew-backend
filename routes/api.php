@@ -20,6 +20,12 @@ Route::post('auth/login', [AuthentificationController::class, 'login'])->name('l
 Route::post('auth/verify-email', [VerifyEmailController::class, 'verify']);
 Route::post('auth/verify-code', [VerifyCodeController::class, 'verifyCode']);
 
+Route::get('auth/user-profile', [AuthentificationController::class, 'getUserProfile']);
+
+Route::post('auth/logout', [AuthentificationController::class, 'logout']);
+
+
+
 // Routes protégées par le token (auth:api)
 Route::middleware('auth:api')->group(function () {
     // Routes pour les événements (Création, Modification, Suppression)
@@ -35,16 +41,23 @@ Route::middleware('auth:api')->group(function () {
     Route::get('events/trash', [EventController::class, 'trash']);
 
     // Routes pour les catégories
-    Route::apiResource('categories', CategoryController::class);
+    Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 
     // Routes pour les portefeuilles (Création, Modification, Suppression)
     Route::apiResource('wallets', WalletController::class);
 
     // Routes pour afficher les billets pour un utilisateur connecté
     Route::get('tickets', [TicketController::class, 'index']);
+
+    // Routes afficher les evenements creer par l'utilisateur connecté
+    Route::get('/events/my-events', [EventController::class, 'myEvents'])->name('events.my-events');
 });
 
+Route::apiResource('categories', CategoryController::class)->except(['store', 'update', 'destroy']);
 
 // Routes publiques pour les billets et événements (Consultation)
 Route::post('tickets', [TicketController::class, 'store']);
 Route::apiResource('events', EventController::class)->only(['index', 'show']);
+Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show']);
+Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations']);
+Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');

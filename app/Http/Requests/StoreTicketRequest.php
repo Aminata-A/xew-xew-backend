@@ -2,34 +2,40 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
+use App\Models\RegisteredUser;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Auth\Middleware\Authenticate;
 
 class StoreTicketRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
-     */
+    * Determine if the user is authorized to make this request.
+    */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     */
+    * Get the validation rules that apply to the request.
+    */
     public function rules(): array
     {
+
         return [
-            'event_id' => 'required|exists:events,id',
-            'email' => 'required|email',
-            'name' => 'required|string|max:255',
-            'quantity' => 'required|integer|min:1',
+            // 'event_id' => 'required|exists:events,id',
+            // 'email' => 'required|email|nullable',
+            // 'name' => 'required|string|max:255|nullable',
+            // 'quantity' => 'required|integer|min:1',
         ];
     }
 
     /**
-     * Get custom error messages for the defined validation rules.
-     */
+    * Get custom error messages for the defined validation rules.
+    */
     public function messages(): array
     {
         return [

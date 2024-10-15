@@ -1,8 +1,9 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -21,6 +22,9 @@ return new class extends Migration
             $table->foreign('user_id')->references('id')->on('registered_users');
             $table->timestamps();
         });
+
+        // Ajouter la contrainte CHECK pour forcer les valeurs en majuscules
+    DB::statement("ALTER TABLE wallets ADD CONSTRAINT check_wallet_name CHECK (name = UPPER(name));");
     }
 
     /**
