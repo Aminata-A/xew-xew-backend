@@ -53,11 +53,17 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/events/my-events', [EventController::class, 'myEvents'])->name('events.my-events');
 });
 
+// Route publique pour les catégories
 Route::apiResource('categories', CategoryController::class)->except(['store', 'update', 'destroy']);
 
-// Routes publiques pour les billets et événements (Consultation)
+// Routes publiques pour les billets (Création)
 Route::post('tickets', [TicketController::class, 'store']);
+
+// Routes publiques pour les  événements (Voir liste, voir un élément)
 Route::apiResource('events', EventController::class)->only(['index', 'show']);
+
+// Routes public pout voir les categories des evenements
 Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show']);
 Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations']);
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
+// Route::get('/events?category=${categoryId}', [EventController::class, 'index']);

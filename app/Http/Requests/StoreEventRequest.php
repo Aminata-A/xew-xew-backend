@@ -20,7 +20,7 @@ class StoreEventRequest extends FormRequest
             'location' => 'required|string|max:255',
             'event_status' => 'required|in:publier,brouillon,archiver,annuler,supprimer',
             'description' => 'nullable|string',
-            'banner' => 'nullable|string',
+            'banner' => 'required|file|mimes:jpg,jpeg,png|max:2048',  
             'ticket_quantity' => 'required|integer|min:1',
             'ticket_price' => 'required|numeric|min:0',
             'categories' => 'array|exists:categories,id',

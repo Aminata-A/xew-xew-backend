@@ -14,8 +14,8 @@ class CategoryEventController extends Controller
     */
     public function index()
     {
-        $categoryEvents = CategoryEvent::all();
-        return response()->json($categoryEvents, 200);
+        $category = Category::all('events');
+        return response()->json($category, 200);
     }
 
     /**
