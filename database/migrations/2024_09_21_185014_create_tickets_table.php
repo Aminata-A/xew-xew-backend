@@ -16,6 +16,7 @@ return new class extends Migration
             $table->boolean('is_paid')->default(false);
             $table->string('url_payment')->nullable();
             $table->string('naboo_order_id')->nullable();
+            $table->string('status')->default('not_paid');
             $table->unsignedBigInteger('event_id');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('wallet_id')->nullable();
