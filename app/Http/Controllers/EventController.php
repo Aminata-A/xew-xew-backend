@@ -1,11 +1,14 @@
 <?php
+
 namespace App\Http\Controllers;
 
+use Exception;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
-use Exception;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class EventController extends Controller
 {
@@ -17,13 +20,13 @@ class EventController extends Controller
             $categoryId = $request->query('category_id');
 
             // Construire la requête de base
-            $query = Event::with('organizer', 'organizer.user', 'categories')
+            $query = Event::with(['organizer.user', 'categories'])
                 ->whereNull('deleted_at')
                 ->where('event_status', '!=', 'supprimer');
 
             // Si une catégorie est spécifiée, ajouter une condition à la requête
             if ($categoryId) {
-                $query->whereHas('categories', function($q) use ($categoryId) {
+                $query->whereHas('categories', function ($q) use ($categoryId) {
                     $q->where('categories.id', $categoryId);
                 });
             }
@@ -42,14 +45,15 @@ class EventController extends Controller
     public function store(Request $request)
     {
         try {
-            // Authentifier l'utilisateur
+            // Authenticate user
             $user = JWTAuth::user();
             if (!$user) {
                 return response()->json(['message' => 'Non autorisé'], 401);
             }
 
-            // Validation des données JSON
-            $validatedData = $request->validate([
+            $data = json_decode($request->input('body'), true);
+            // Validate event data
+            $validator = Validator::make($data, [
                 'name' => 'required|string|max:255',
                 'date' => 'required|date',
                 'time' => 'required',
@@ -73,26 +77,43 @@ class EventController extends Controller
                 'ticket_quantity.integer' => 'Le nombre de billets doit être un entier.',
             ]);
 
-            // Validation du fichier 'banner'
-            if ($request->hasFile('banner')) {
-                $banner = $request->file('banner');
-                $banner->validate([
-                    'banner' => 'required|file|mimes:jpeg,png,jpg,gif|max:2048',
-                ]);
-
-                if ($banner->isValid()) {
-                    $filename = time() . '_' . $banner->getClientOriginalName();
-                    $filePath = $banner->storeAs('uploads/events', $filename, 'public');
-                    $validatedData['banner'] = '/storage/' . $filePath;
-                } else {
-                    return response()->json(['error' => 'Le fichier n\'est pas valide'], 400);
-                }
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            // Créer l'événement avec les données validées
+            $validatedData = $validator->validated();
+
+            // Validate banner file
+            $banner = $request->file('banner');
+            if (!$banner) {
+                return response()->json(['error' => 'La bannière est obligatoire'], 400);
+            }
+
+            $bannerValidator = Validator::make(['banner' => $banner], [
+                'banner' => 'required|file|mimes:jpeg,png,jpg,gif|max:2048',
+            ], [
+                'banner.required' => 'La bannière est obligatoire.',
+                'banner.file' => 'Le fichier doit être un fichier valide.',
+                'banner.mimes' => 'Le fichier doit être un type de fichier : jpeg, png, jpg ou gif.',
+                'banner.max' => 'Le fichier ne doit pas dépasser 2 Mo.',
+            ]);
+
+            if ($bannerValidator->fails()) {
+                return response()->json(['errors' => $bannerValidator->errors()], 422);
+            }
+
+            // Store banner file
+            $filename = 'banner-' . $validatedData['name'] . '.' . $banner->getClientOriginalExtension();
+            $filePath = $banner->storeAs('public/events', $filename, 'public');
+            $validatedData['banner'] = '/storage/' . $filePath;
+
+            // Create the event
             $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
 
-            // Vérifier si l'événement a été créé
+            // TODO ADD CATEGORIES AND WALLETS AND THEN SYNC THEM
+            $categories = json_decode($request->input('categories'), true);
+            $wallets = json_decode($request->input('wallets'), true);
+
             return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
         } catch (Exception $e) {
             return response()->json(['error' => 'Erreur lors de la création de l\'événement', 'details' => $e->getMessage()], 500);
@@ -101,14 +122,13 @@ class EventController extends Controller
 
 
 
-
     // Voir les détails d'un événement spécifique
     public function show($id)
     {
         try {
             $event = Event::with(['organizer', 'organizer.user', 'categories'])
-            ->withTrashed()
-            ->find($id);
+                ->withTrashed()
+                ->find($id);
 
             if (!$event) {
                 return response()->json(['erreur' => 'Événement non trouvé'], 404);
@@ -130,10 +150,10 @@ class EventController extends Controller
             }
 
             $events = Event::with('organizer', 'organizer.user')
-            ->where('organizer_id', $user->id)
-            ->whereNull('deleted_at')
-            ->where('event_status', '!=', 'supprimer')
-            ->get();
+                ->where('organizer_id', $user->id)
+                ->whereNull('deleted_at')
+                ->where('event_status', '!=', 'supprimer')
+                ->get();
 
             return response()->json($events, 200);
         } catch (Exception $e) {
@@ -141,6 +161,7 @@ class EventController extends Controller
         }
     }
 
+    // Modifier un événement avec validation et messages personnalisés
     // Modifier un événement avec validation et messages personnalisés
     public function update(Request $request, $id)
     {
@@ -155,6 +176,11 @@ class EventController extends Controller
             $event = Event::find($id);
             if (!$event) {
                 return response()->json(['message' => 'Événement non trouvé'], 404);
+            }
+
+            // Vérifier si l'utilisateur connecté est l'organisateur
+            if ($event->organizer_id != $user->id) {
+                return response()->json(['message' => 'Non autorisé'], 403);
             }
 
             // Validation des données pour la mise à jour avec messages personnalisés
@@ -190,11 +216,12 @@ class EventController extends Controller
             // Mise à jour de l'événement avec les nouvelles données
             $event->update(array_merge($validatedData, ['organizer_id' => $user->id]));
 
-            if (isset($validatedData['categories'])) {
-                $event->categories()->sync($validatedData['categories']);
+            // Synchronisation des catégories et wallets si présents
+            if ($request->has('categories')) {
+                $event->categories()->sync($request->input('categories'));
             }
-            if (isset($validatedData['wallets'])) {
-                $event->wallets()->sync($validatedData['wallets']);
+            if ($request->has('wallets')) {
+                $event->wallets()->sync($request->input('wallets'));
             }
 
             return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
@@ -203,23 +230,37 @@ class EventController extends Controller
         }
     }
 
+
     // Supprimer un événement
     public function destroy($id)
     {
         try {
+            // Authentifier l'utilisateur
             $user = JWTAuth::parseToken()->authenticate();
-            $event = Event::findOrFail($id);
-
-            if ($event->organizer_id != $user->id) {
-                return response()->json(['erreur' => 'Non autorisé'], 403);
+            if (!$user) {
+                return response()->json(['message' => 'Non autorisé'], 401);
             }
 
+            // Trouver l'événement par son ID
+            $event = Event::find($id);
+            if (!$event) {
+                return response()->json(['message' => 'Événement non trouvé'], 404);
+            }
+
+            // Vérifier si l'utilisateur connecté est l'organisateur
+            if ($event->organizer_id != $user->id) {
+                return response()->json(['message' => 'Non autorisé'], 403);
+            }
+
+            // Soft-delete de l'événement
             $event->delete();
+
             return response()->json(['message' => 'Événement supprimé avec succès'], 200);
         } catch (Exception $e) {
             return response()->json(['error' => 'Erreur lors de la suppression de l\'événement', 'details' => $e->getMessage()], 500);
         }
     }
+
 
     // Restaurer un événement soft-supprimé
     public function restore($id)
@@ -297,5 +338,4 @@ class EventController extends Controller
             return response()->json(['error' => 'Erreur lors de la suppression définitive de l\'événement', 'details' => $e->getMessage()], 500);
         }
     }
-
 }

@@ -66,4 +66,5 @@ Route::apiResource('events', EventController::class)->only(['index', 'show']);
 Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show']);
 Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations']);
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
+Route::get('tickets/{ticket}', [TicketController::class, 'show']);
 // Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
