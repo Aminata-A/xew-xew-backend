@@ -55,12 +55,12 @@ class EventController extends Controller
             // Validate event data
             $validator = Validator::make($data, [
                 'name' => 'required|string|max:255',
-                'date' => 'required|date',
+                'date' => 'sometimes|date|after:today',  // Vérifier que la date est dans le futur
                 'time' => 'required',
                 'location' => 'required|string|max:255',
                 'description' => 'required|string',
-                'ticket_price' => 'required|numeric',
-                'ticket_quantity' => 'required|integer',
+                'ticket_price' => 'required|numeric|min:0',  // Prix ne doit pas être négatif
+                'ticket_quantity' => 'required|integer|min:0',  // Quantité ne doit pas être négative
             ], [
                 'name.required' => 'Le nom de l\'événement est obligatoire.',
                 'name.string' => 'Le nom de l\'événement doit être une chaîne de caractères.',
@@ -186,11 +186,11 @@ class EventController extends Controller
             // Validation des données pour la mise à jour avec messages personnalisés
             $validatedData = $request->validate([
                 'name' => 'sometimes|string|max:255',
-                'date' => 'sometimes|date',
+                'date' => 'required|date|after:today',  // Date doit être dans le futur
                 'time' => 'sometimes',
                 'location' => 'sometimes|string|max:255',
-                'ticket_price' => 'sometimes|numeric',
-                'ticket_quantity' => 'sometimes|integer',
+                'ticket_price' => 'required|numeric|min:0',  // Prix ne doit pas être négatif
+                'ticket_quantity' => 'required|integer|min:0',  // Quantité ne doit pas être négative
                 'banner' => 'sometimes|file|mimes:jpeg,png,jpg,gif|max:2048', // Validation de la bannière
             ], [
                 'name.string' => 'Le nom de l\'événement doit être une chaîne de caractères.',

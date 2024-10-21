@@ -60,7 +60,7 @@ class AuthentificationController extends Controller
         if (empty($request->input('role'))) {
             $errors['role'] = 'Le rôle est requis.';
         } elseif (!in_array($request->input('role'), ['organizer', 'participant'])) {
-            $errors['role'] = 'Le rôle doit être soit "admin" soit "user".';
+            $errors['role'] = 'Le rôle doit être soit "organizer" soit "participant".';
         }
 
         // Vérifier s'il y a des erreurs de validation
@@ -75,12 +75,30 @@ class AuthentificationController extends Controller
             return response()->json(['erreur' => 'Un utilisateur avec cet email existe déjà'], 400);
         }
 
+        // Gestion de l'upload de la photo de profil
+        $profilePhotoPath = null;
+        if ($request->hasFile('photo')) {
+            $photo = $request->file('photo');
+
+            // Validation de la photo
+            $validatedData = $request->validate([
+                'photo' => 'image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB
+            ]);
+
+            // Sauvegarde de la photo dans le répertoire "public/uploads/profile_photos"
+            if ($photo->isValid()) {
+                $photoName = time() . '_' . $photo->getClientOriginalName();
+                $profilePhotoPath = $photo->storeAs('uploads/profile_photos', $photoName, 'public');
+            }
+        }
+
         // Créer l'utilisateur inscrit
         $registeredUser = new RegisteredUser([
             'role' => $request->input('role'),
             'password' => Hash::make($request->input('password')),
             'solde' => 0,
             'status' => 'active',
+            'photo' => $profilePhotoPath ? '/storage/' . $profilePhotoPath : null, // Associer la photo si présente
         ]);
         $registeredUser->save();
 
@@ -95,6 +113,7 @@ class AuthentificationController extends Controller
 
         return response()->json(['message' => 'Inscription réussie'], 201);
     }
+
 
 
 
