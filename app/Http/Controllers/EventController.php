@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Exception;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use App\Models\CategoryEvent;
+use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -41,7 +43,7 @@ class EventController extends Controller
     }
 
 
-    // Créer un nouvel événement avec validation et messages d'erreur personnalisés
+    // Créer un nouvel événement avec validation et messages d'erreur personnalisés    // Créer un nouvel événement avec validation et messages d'erreur personnalisés
     public function store(Request $request)
     {
         try {
@@ -55,12 +57,12 @@ class EventController extends Controller
             // Validate event data
             $validator = Validator::make($data, [
                 'name' => 'required|string|max:255',
-                'date' => 'required|date',
+                'date' => 'sometimes|date|after:today',  // Vérifier que la date est dans le futur
                 'time' => 'required',
                 'location' => 'required|string|max:255',
                 'description' => 'required|string',
-                'ticket_price' => 'required|numeric',
-                'ticket_quantity' => 'required|integer',
+                'ticket_price' => 'required|numeric|min:0',  // Prix ne doit pas être négatif
+                'ticket_quantity' => 'required|integer|min:0',  // Quantité ne doit pas être négative
             ], [
                 'name.required' => 'Le nom de l\'événement est obligatoire.',
                 'name.string' => 'Le nom de l\'événement doit être une chaîne de caractères.',
@@ -109,16 +111,79 @@ class EventController extends Controller
 
             // Create the event
             $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
-
             // TODO ADD CATEGORIES AND WALLETS AND THEN SYNC THEM
-            $categories = json_decode($request->input('categories'), true);
-            $wallets = json_decode($request->input('wallets'), true);
+    // Gérer les catégories si elles sont présentes dans la requête
+    if (isset($data['categories'])) {
 
+        $event->categories()->sync($data['categories']);  // Sync multiple categories
+        
+    }
+    // Gérer les portefeuilles si ils sont présents dans la requête (table pivot EventPaymentMethod)
+    if (isset($data['wallets'])) {
+        $event->wallets()->sync($data['wallets']);  // Sync multiple wallets
+    }
             return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
         } catch (Exception $e) {
             return response()->json(['error' => 'Erreur lors de la création de l\'événement', 'details' => $e->getMessage()], 500);
         }
     }
+
+//     public function store(Request $request)
+// {
+//     try {
+//         $user = JWTAuth::user();
+//         if (!$user) {
+//             return response()->json(['message' => 'Non autorisé'], 401);
+//         }
+
+//         $data = json_decode($request->input('body'), true);
+
+//         DB::beginTransaction();
+
+//         // Validation des données
+//         $validator = Validator::make($data, [
+//             'name' => 'required|string|max:255',
+//             'date' => 'sometimes|date|after:today',
+//             'time' => 'required',
+//             'location' => 'required|string|max:255',
+//             'description' => 'required|string',
+//             'ticket_price' => 'required|numeric|min:0',
+//             'ticket_quantity' => 'required|integer|min:30',
+//             'categories' => 'required|array', // Array of category IDs
+//             'categories.*' => 'exists:categories,id', // Ensure categories exist
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json(['errors' => $validator->errors()], 422);
+//         }
+
+//         $validatedData = $validator->validated();
+
+//         // Create the event
+//         $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
+
+//         // create categorie
+//         foreach ($request->categories as $index => $categoryId) {
+//             CategoryEvent::create([
+//                 'event_id' => $event->id,
+//                 'category_id' => $categoryId
+//             ]);
+//         }
+
+//         // Sync the event with the provided categories
+//         $event->load('categories');
+
+//         DB::commit();
+
+
+//         return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
+//     } catch (Exception $e) {
+//         return response()->json(['error' => 'Erreur lors de la création de l\'événement', 'details' => $e->getMessage()], 500);
+//     }
+// }
+
+
+
 
 
 
@@ -126,7 +191,7 @@ class EventController extends Controller
     public function show($id)
     {
         try {
-            $event = Event::with(['organizer', 'organizer.user', 'categories'])
+            $event = Event::with(['organizer', 'organizer.user', 'categories', 'wallets'])
                 ->withTrashed()
                 ->find($id);
 
@@ -186,11 +251,11 @@ class EventController extends Controller
             // Validation des données pour la mise à jour avec messages personnalisés
             $validatedData = $request->validate([
                 'name' => 'sometimes|string|max:255',
-                'date' => 'sometimes|date',
+                'date' => 'required|date|after:today',  // Date doit être dans le futur
                 'time' => 'sometimes',
                 'location' => 'sometimes|string|max:255',
-                'ticket_price' => 'sometimes|numeric',
-                'ticket_quantity' => 'sometimes|integer',
+                'ticket_price' => 'required|numeric|min:0',  // Prix ne doit pas être négatif
+                'ticket_quantity' => 'required|integer|min:0',  // Quantité ne doit pas être négative
                 'banner' => 'sometimes|file|mimes:jpeg,png,jpg,gif|max:2048', // Validation de la bannière
             ], [
                 'name.string' => 'Le nom de l\'événement doit être une chaîne de caractères.',

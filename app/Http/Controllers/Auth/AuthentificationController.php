@@ -39,8 +39,8 @@ class AuthentificationController extends Controller
 
         if (empty($request->input('name'))) {
             $errors['name'] = 'Le nom est requis.';
-        } elseif (strlen($request->input('name')) > 255) {
-            $errors['name'] = 'Le nom ne doit pas dépasser 255 caractères.';
+        } elseif (strlen($request->input('name')) > 100) {
+            $errors['name'] = 'Le nom ne doit pas dépasser 100 caractères.';
         }
 
         if (empty($request->input('password'))) {
@@ -55,6 +55,8 @@ class AuthentificationController extends Controller
             $errors['phone'] = 'Le numéro de téléphone est requis.';
         } elseif (strlen($request->input('phone')) > 20) {
             $errors['phone'] = 'Le numéro de téléphone ne doit pas dépasser 20 caractères.';
+        }else if(!preg_match('/^[0-9]+$/', $request->input('phone'))){
+            $errors['phone'] = 'Le numéro de numéro doit contenir uniquement des chiffres.';
         }
 
         if (empty($request->input('role'))) {

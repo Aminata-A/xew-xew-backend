@@ -28,6 +28,12 @@ class Event extends Model
         return $this->belongsToMany(Category::class, 'categories_events');
     }
 
+//     public function categories()
+// {
+//     return $this->hasManyThrough(Category::class, 'categories_events', 'event_id', 'category_id');
+// }
+
+
     public function wallets(){
         return $this->belongsToMany(Wallet::class, 'event_payment_methods');
     }
