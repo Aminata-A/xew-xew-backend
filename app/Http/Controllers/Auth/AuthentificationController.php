@@ -6,11 +6,12 @@ use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\Request;
-use App\Models\RegisteredUser;
-use App\Http\Controllers\Controller;
 use App\Models\AnonymousUser;
-use Illuminate\Support\Facades\Hash;
+use App\Models\RegisteredUser;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class AuthentificationController extends Controller
 {
@@ -155,14 +156,6 @@ class AuthentificationController extends Controller
         return response()->json(['message' => 'Connexion réussie', 'token' => $token], 200);
     }
 
-    // public function getUserProfile(Request $request)
-    // {
-    //     $user = JWTAuth::parseToken()->authenticate(); // Récupérer l'utilisateur connecté à partir du token
-
-    //     return response()->json($user, 200); // Retourner les informations de l'utilisateur
-
-
-    // }
 
     public function getUserProfile(Request $request)
     {
@@ -205,5 +198,53 @@ class AuthentificationController extends Controller
         $request->user()->token()->revoke();
         return response()->json(['message' => 'Connexion annulée'], 200);
     }
+
+    public function updateProfile(Request $request)
+    {
+        // Authentification de l'utilisateur
+                $user = JWTAuth::user();
+
+        // Validation des données
+        $validatedData = $request->validate([
+            'name' => 'nullable|string|max:100',
+            'phone' => 'nullable|string|max:20|regex:/^[0-9]+$/',
+            'role' => 'nullable|in:organizer,participant',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+
+        // Mettre à jour les informations de l'utilisateur
+        if ($request->has('name')) {
+            $user->name = $validatedData['name'];
+        }
+
+        if ($request->has('phone')) {
+            $user->phone = $validatedData['phone'];
+        }
+
+        if ($request->has('role')) {
+            $user->role = $validatedData['role'];
+        }
+
+        // Gestion de la photo de profil
+        if ($request->hasFile('photo')) {
+            // Supprimer l'ancienne photo si elle existe
+            if ($user->photo) {
+                Storage::disk('public')->delete($user->photo);
+            }
+
+            // Sauvegarder la nouvelle photo
+            $photoPath = $request->file('photo')->store('profile_photos', 'public');
+            $user->photo = $photoPath;
+        }
+
+        // Sauvegarder les changements
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profil mis à jour avec succès',
+            'user' => $user
+        ], 200);
+    }
+
 
 }
