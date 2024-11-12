@@ -1,7 +1,7 @@
 services:
   - type: web
     name: xewxew
-    runtime: node # spécifie la runtime, adapte-le en fonction de ton backend (ex : node pour Node.js)
+    runtime: docker # spécifie la runtime, adapte-le en fonction de ton backend (ex : node pour Node.js)
     plan: free
     dockerfilePath: Dockerfile
     buildCommand: "pip install -r requirements.txt" # commande d’installation des dépendances
