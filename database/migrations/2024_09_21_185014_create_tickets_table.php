@@ -20,9 +20,10 @@ return new class extends Migration
             $table->unsignedBigInteger('event_id');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('wallet_id')->nullable();
-            $table->foreign('event_id')->references('id')->on('events');
-            $table->foreign('user_id')->references('id')->on('users');
-            $table->foreign('wallet_id')->references('id')->on('wallets');
+            $table->string('ticket_type'); // Added column for the selected ticket type
+            $table->foreign('event_id')->references('id')->on('events')->onDelete('cascade');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('wallet_id')->references('id')->on('wallets')->onDelete('set null');
             $table->timestamps();
         });
     }
