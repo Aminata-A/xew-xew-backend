@@ -3,7 +3,7 @@ services:
     name: xewxew
     runtime: node # spécifie la runtime, adapte-le en fonction de ton backend (ex : node pour Node.js)
     plan: free
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: Dockerfile
     buildCommand: "pip install -r requirements.txt" # commande d’installation des dépendances
     startCommand: "gunicorn MonBackend.wsgi:application" # commande pour démarrer l'application
     envVars:
