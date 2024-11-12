@@ -77,7 +77,7 @@ class CategoryController extends Controller
         $categorie = Category::find($id);
 
         if (!$categorie) {
-            return response()->json(['error' => "Categorie n'existe pas"], 404);
+             return response()->json(['error' => "Categorie n'existe pas"], 404);
         }
 
         $categorie->delete();

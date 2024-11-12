@@ -10,23 +10,36 @@ class Event extends Model
 {
     use HasFactory, SoftDeletes;
 
+
+
     protected $fillable = [
         'name',
+        'description',
+        'location',
         'date',
         'time',
-        'location',
-        'event_status',
-        'description',
         'banner',
-        'ticket_quantity',
-        'ticket_price',
         'organizer_id',
+        'ticket_types', // Ajout de ticket_types ici
+        'event_status'
     ];
+
+    protected $casts = [
+        'ticket_types' => 'json', // Caster ticket_types en JSON
+    ];
+
+
 
     public function categories()
     {
         return $this->belongsToMany(Category::class, 'categories_events');
     }
+
+//     public function categories()
+// {
+//     return $this->hasManyThrough(Category::class, 'categories_events', 'event_id', 'category_id');
+// }
+
 
     public function wallets(){
         return $this->belongsToMany(Wallet::class, 'event_payment_methods');

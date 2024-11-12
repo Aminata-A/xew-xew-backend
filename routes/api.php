@@ -29,7 +29,10 @@ Route::post('auth/logout', [AuthentificationController::class, 'logout']);
 // Routes protégées par le token (auth:api)
 Route::middleware('auth:api')->group(function () {
     // Routes pour les événements (Création, Modification, Suppression)
-    Route::apiResource('events', EventController::class)->only(['store', 'update', 'destroy']);
+    Route::apiResource('events', EventController::class)->only(['store', 'destroy']);
+
+    // Route pour mettre à jour un événement
+    Route::post('events/{event}/update', [EventController::class, 'update'])->name('events.update');
 
     // Route pour restaurer un événement supprimé
     Route::post('events/{event}/restore', [EventController::class, 'restore']);
@@ -43,15 +46,22 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les catégories
     Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 
-    // Routes pour les portefeuilles (Création, Modification, Suppression)
-    Route::apiResource('wallets', WalletController::class);
+
 
     // Routes pour afficher les billets pour un utilisateur connecté
     Route::get('tickets', [TicketController::class, 'index']);
 
     // Routes afficher les evenements creer par l'utilisateur connecté
     Route::get('/events/my-events', [EventController::class, 'myEvents'])->name('events.my-events');
+
+    // Route pour scanner le QR code
+    Route::post('tickets/scan/{ticket}', [TicketController::class, 'scanTicket']);
+
+    //  Route poour afficher le dashboard
 });
+
+// Route dans le backend
+Route::get('/events/{id}/dashboard', [EventController::class, 'dashboard']);
 
 // Route publique pour les catégories
 Route::apiResource('categories', CategoryController::class)->except(['store', 'update', 'destroy']);
@@ -64,7 +74,11 @@ Route::apiResource('events', EventController::class)->only(['index', 'show']);
 
 // Routes public pout voir les categories des evenements
 Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show']);
+Route::get('/events/{id}/similar', [EventController::class, 'similarEvents']);
+
 Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations']);
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
 Route::get('tickets/{ticket}', [TicketController::class, 'show']);
 // Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
+    // Routes pour les portefeuilles (Création, Modification, Suppression)
+    Route::apiResource('wallets', WalletController::class);

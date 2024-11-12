@@ -3,70 +3,60 @@
 namespace App\Http\Controllers\Auth;
 
 use Firebase\JWT\JWT;
-use Tymon\JWTAuth\Payload;
 use Illuminate\Http\Request;
-use Tymon\JWTAuth\PayloadFactory;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Redis;
 
 class VerifyCodeController extends Controller
 {
-
     public function verifyCode(Request $request)
     {
+        // Récupérer l'email et le code à partir de la requête
         $email = $request->input('email');
         $inputCode = $request->input('code');
 
-        // Check if email is provided
+        // Vérifier si l'email est fourni
         if (!$email) {
-            return response()->json(['error' => 'Email is required'], 400);
+            return response()->json(['error' => 'L\'email est requis.'], 400);
         }
 
-        // Check if email is provided
+        // Vérifier si le code est fourni
         if (!$inputCode) {
-            return response()->json(['error' => 'Code is required'], 400);
+            return response()->json(['error' => 'Le code est requis.'], 400);
         }
 
-        // Retrieve the code from Redis
+        // Récupérer le code stocké dans Redis
         $storedCode = Redis::get("verification_code:{$email}");
 
-        // Check if the code exists and matches
+        // Vérifier si le code existe et correspond
         if (!$storedCode) {
-            return response()->json(['error' => 'No code found or code expired'], 404);
+            return response()->json(['error' => 'Aucun code trouvé ou le code a expiré.'], 404);
         }
 
         if ($storedCode != $inputCode) {
-            return response()->json(['error' => 'Invalid code'], 400);
+            return response()->json(['error' => 'Code invalide.'], 400);
         }
 
-        //  generer token jwt pour l'utilisateur apres avoir recu le code pour la cnontinite du creation de compte
+        // Générer un token JWT après la vérification du code
         $token = $this->generateRegisterJWT($email);
 
-
-        return response()->json(['message' => 'Code verified successfully', 'token' => $token],200);
+        return response()->json(['message' => 'Code vérifié avec succès', 'token' => $token], 200);
     }
 
     private function generateRegisterJWT($email)
     {
-
-
         $jwtSecret = config('jwt.secret');
 
-        // Define the payload for the JWT
+        // Définir le payload du JWT
         $payload = [
-            'iss' => 'xew_xew', // Issuer of the token (your app)
-            'email' => $email,        // The email of the user
-            'iat' => time(),          // Issued at timestamp
-            // 'exp' => time() + 3600    // Expiration time (1 hour)
-            'exp' => time() + 86400    // Expiration time (1 day pour test )
+            'iss' => 'xew_xew',      // Émetteur du token (votre app)
+            'email' => $email,       // L'email de l'utilisateur
+            'iat' => time(),         // Timestamp de l'émission
+            'exp' => time() + 86400  // Expiration (1 jour pour les tests)
         ];
-
 
         // Encoder le payload en JWT
         $jwt = JWT::encode($payload, $jwtSecret, 'HS256');
-
-
 
         return $jwt;
     }

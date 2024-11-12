@@ -23,7 +23,8 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Ajouter la contrainte CHECK pour forcer les valeurs en majuscules
+
+    // Ajouter la contrainte CHECK pour forcer les valeurs en majuscules
     DB::statement("ALTER TABLE wallets ADD CONSTRAINT check_wallet_name CHECK (name = UPPER(name));");
     }
 

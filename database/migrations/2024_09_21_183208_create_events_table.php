@@ -19,14 +19,14 @@ return new class extends Migration
             $table->date('date');
             $table->time('time');
             $table->string('banner');
-            $table->integer('ticket_quantity');
-            $table->decimal('ticket_price', 10, 2);
-            $table->enum('event_status', ['publier', 'brouillon', 'archiver', 'annuler', 'supprimer'])->default('brouillon');
+            $table->enum('event_status', ['publier', 'brouillon', 'archiver', 'annuler', 'supprimer'])->default('publier');
             $table->unsignedBigInteger('organizer_id');
             $table->foreign('organizer_id')->references('id')->on('registered_users');
+            $table->json('ticket_types')->nullable(); // Utiliser seulement `ticket_types`
             $table->softDeletes();
             $table->timestamps();
         });
+
     }
 
     /**
@@ -37,3 +37,4 @@ return new class extends Migration
         Schema::dropIfExists('events');
     }
 };
+
