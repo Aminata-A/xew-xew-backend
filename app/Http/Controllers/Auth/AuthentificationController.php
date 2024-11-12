@@ -202,7 +202,7 @@ class AuthentificationController extends Controller
     public function updateProfile(Request $request)
     {
         // Authentification de l'utilisateur
-                $user = JWTAuth::user();
+        $user = JWTAuth::user();
 
         // Validation des données
         $validatedData = $request->validate([

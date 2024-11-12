@@ -15,41 +15,45 @@ class VerifyEmailController extends Controller
     public function verify(Request $request)
     {
         $id = null;
-        // Récupérer l'email à partir de la requête
-        $email = $request->input('email');
+        // Retrieve email from the request
+        $email = $request->input(key: 'email');
+        // dd($email);
 
-        // Vérifier si l'email est fourni
+        // Check if email is provided
         if (!$email) {
-            return response()->json(['error' => 'L\'email est requis.'], 400);
+            return response()->json(['error' => 'Email is required'], 400);
         }
 
-        // Valider le format de l'email avec une regex
+        // Validate the email using regex
         $emailRegex = "/^[a-zA-Z0-9.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/";
 
         if (!preg_match($emailRegex, $email)) {
-            return response()->json(['error' => 'Le format de l\'email est invalide.'], 400);
+            return response()->json(['error' => 'Invalid email format'], 400);
         }
 
-        // Vérifier si l'utilisateur existe
+        // Check if the user exists
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            // Vérifier si la relation userable est un RegisteredUser
+            // Check if the userable relationship is a RegisteredUser
             if ($user->userable instanceof RegisteredUser) {
-                return response()->json(['message' => 'Cet utilisateur existe déjà en tant que RegisteredUser.'], 200);
+                return response()->json(['message' => 'User already exists as RegisteredUser'], 200);
             }
             $id = $user->id;
         }
 
-        // Générer un code à 6 chiffres
+        // Generate a 6-digit code
         $code = rand(100000, 999999);
 
-        // Stocker le code dans Redis avec un temps d'expiration (par exemple, 10 minutes)
-        Redis::set("verification_code:{$email}", $code, 'EX', 600); // 600 secondes = 10 minutes
+        // Store the code in Redis with an expiration time (e.g., 10 minutes)
+        Redis::set("verification_code:{$email}", $code, 'EX', 600); // 600 seconds = 10 minutes
 
-        // Envoyer le code à l'adresse email fournie
-        Mail::to($email)->send(new SendCodeEmail($code));
+        // Send the code to the provided email
+        Mail::to($email)->send(mailable: new SendCodeEmail($code));
 
-        return response()->json(['message' => 'Code envoyé à l\'adresse email fournie.', 'id' => $id], 200);
+        return response()->json(['message' => 'Code sent to the provided email address', 'id' => $id],200);
+
     }
+
+
 }

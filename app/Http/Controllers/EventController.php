@@ -19,22 +19,18 @@ class EventController extends Controller
     public function index(Request $request)
     {
         try {
-            // Récupérer la catégorie à filtrer si présente dans la requête
             $categoryId = $request->query('category_id');
 
-            // Construire la requête de base pour récupérer les événements
             $query = Event::with(['organizer.user', 'categories'])
                 ->whereNull('deleted_at')
                 ->where('event_status', '!=', 'supprimer');
 
-            // Si une catégorie est spécifiée, filtrer par cette catégorie
             if ($categoryId) {
                 $query->whereHas('categories', function ($q) use ($categoryId) {
                     $q->where('categories.id', $categoryId);
                 });
             }
 
-            // Récupérer les événements en fonction des filtres appliqués
             $events = $query->get();
 
             return response()->json($events, 200);
@@ -42,6 +38,7 @@ class EventController extends Controller
             return response()->json(['error' => 'Erreur lors de la récupération des événements', 'details' => $e->getMessage()], 500);
         }
     }
+
 
 
 
@@ -55,83 +52,61 @@ class EventController extends Controller
                 return response()->json(['message' => 'Non autorisé'], 401);
             }
 
-            // Décodage des données de l'événement
             $data = json_decode($request->input('body'), true);
 
-            // Validation des données de l'événement
+            // Validation des données de l'événement, des tickets et des relations
             $validator = Validator::make($data, [
                 'name' => 'required|string|max:255',
                 'date' => 'required|date|after:today',
                 'time' => 'required',
                 'location' => 'required|string|max:255',
                 'description' => 'required|string',
-                'ticket_price' => 'required|numeric|min:0',
-                'ticket_quantity' => 'required|integer|min:0',
+                'ticket_types' => 'required|array|min:1',
+                'ticket_types.*.type' => 'required|string|max:255',
+                'ticket_types.*.price' => 'required|numeric|min:0',
+                'ticket_types.*.quantity' => 'required|integer|min:1',
+                'categories' => 'array|min:1', // Validation des catégories
+                'categories.*' => 'exists:categories,id',
+                'wallets' => 'required|array|min:1', // Validation des wallets
+                'wallets.*' => 'exists:wallets,id'
             ], [
-                'name.required' => 'Le nom de l\'événement est obligatoire.',
-                'name.string' => 'Le nom de l\'événement doit être une chaîne de caractères.',
-                'name.max' => 'Le nom de l\'événement ne peut pas dépasser 255 caractères.',
-                'date.required' => 'La date de l\'événement est obligatoire.',
-                'date.date' => 'La date de l\'événement doit être une date valide.',
-                'date.after' => 'La date doit être dans le futur.',
-                'time.required' => 'L\'heure de l\'événement est obligatoire.',
-                'location.required' => 'Le lieu de l\'événement est obligatoire.',
-                'location.string' => 'Le lieu de l\'événement doit être une chaîne de caractères.',
-                'location.max' => 'Le lieu de l\'événement ne peut pas dépasser 255 caractères.',
-                'ticket_price.required' => 'Le prix du billet est obligatoire.',
-                'ticket_price.numeric' => 'Le prix du billet doit être un nombre.',
-                'ticket_price.min' => 'Le prix du billet doit être positif.',
-                'ticket_quantity.required' => 'Le nombre de billets est obligatoire.',
-                'ticket_quantity.integer' => 'Le nombre de billets doit être un entier.',
-                'ticket_quantity.min' => 'Le nombre de billets doit être supérieur ou égal à 0.',
+                'ticket_types.*.type.required' => 'Chaque type de ticket doit avoir un nom.',
+                'ticket_types.*.price.required' => 'Chaque type de ticket doit avoir un prix.',
+                'ticket_types.*.quantity.required' => 'Chaque type de ticket doit avoir une quantité.'
             ]);
 
-            // Vérification des erreurs de validation
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
             $validatedData = $validator->validated();
 
-            // Validation et upload de l'image de la bannière
+            // Gestion de l'upload de l'image bannière
             $banner = $request->file('banner');
             if (!$banner) {
                 return response()->json(['error' => 'La bannière est obligatoire'], 400);
             }
 
-            $bannerValidator = Validator::make(['banner' => $banner], [
-                'banner' => 'required|file|mimes:jpeg,png,jpg,gif|max:2048',
-            ], [
-                'banner.required' => 'La bannière est obligatoire.',
-                'banner.file' => 'Le fichier doit être un fichier valide.',
-                'banner.mimes' => 'La bannière doit être au format jpeg, png, jpg ou gif.',
-                'banner.max' => 'La taille de la bannière ne doit pas dépasser 2 Mo.',
-            ]);
-
-            if ($bannerValidator->fails()) {
-                return response()->json(['errors' => $bannerValidator->errors()], 422);
-            }
-
-            try {
-                $filename = 'banner-' . $validatedData['name'] . '.' . $banner->getClientOriginalExtension();
-                $filePath = $banner->storeAs('public/events', $filename, 'public');
-                $validatedData['banner'] = '/storage/' . $filePath;
-            } catch (Exception $e) {
-                return response()->json(['error' => 'Erreur lors de l\'upload de la bannière.', 'details' => $e->getMessage()], 500);
-            }
+            $bannerPath = $banner->store('public/events', 'public');
+            $validatedData['banner'] = '/storage/' . $bannerPath;
 
             // Création de l'événement
-            $event = Event::create(array_merge($validatedData, ['organizer_id' => $user->id]));
+            $event = Event::create([
+                'name' => $validatedData['name'],
+                'description' => $validatedData['description'],
+                'location' => $validatedData['location'],
+                'date' => $validatedData['date'],
+                'time' => $validatedData['time'],
+                'banner' => $validatedData['banner'],
+                'organizer_id' => $user->id,
+                'ticket_types' => $validatedData['ticket_types'], // Stockage des types de tickets en JSON
+            ]);
 
-            // Synchronisation des catégories
-            if (isset($data['categories'])) {
-                $event->categories()->sync($data['categories']);
-            }
+            // Ajout des catégories à l'événement
+            $event->categories()->sync($validatedData['categories']);
 
-            // Synchronisation des portefeuilles
-            if (isset($data['wallets'])) {
-                $event->wallets()->sync($data['wallets']);
-            }
+            // Ajout des méthodes de paiement à l'événement
+            $event->wallets()->sync($validatedData['wallets']);
 
             return response()->json(['message' => 'Événement créé avec succès', 'event' => $event], 201);
         } catch (Exception $e) {
@@ -143,36 +118,36 @@ class EventController extends Controller
         }
     }
 
-    // Voir les détails d'un événement spécifique
-    public function show($id)
-    {
-        try {
-            $event = Event::with(['organizer', 'organizer.user', 'categories', 'wallets'])
-                ->withTrashed()
-                ->find($id);
 
-            if (!$event) {
-                return response()->json(['erreur' => 'Événement non trouvé'], 404);
-            }
 
-            // Compter le nombre de billets achetés pour cet événement
-            $ticketsBought = DB::table('tickets') // Remplacez 'tickets' par le nom réel de votre table de billets
-                ->where('event_id', $event->id)
-                ->count();
+// Voir les détails d'un événement spécifique
+public function show($id)
+{
+    try {
+        $event = Event::with(['organizer', 'organizer.user', 'categories', 'wallets'])
+            ->withTrashed()
+            ->find($id);
 
-            // Calculer le nombre de billets restants
-            $ticketsRemaining = $event->ticket_quantity - $ticketsBought;
-
-            // Ajouter le nombre de billets restants dans la réponse
-            return response()->json([
-                'event' => $event,
-                'tickets_bought' => $ticketsBought,
-                'tickets_remaining' => $ticketsRemaining,
-            ], 200);
-        } catch (Exception $e) {
-            return response()->json(['error' => 'Erreur lors de la récupération de l\'événement', 'details' => $e->getMessage()], 500);
+        if (!$event) {
+            return response()->json(['erreur' => 'Événement non trouvé'], 404);
         }
+
+        $ticketsBought = DB::table('tickets')
+            ->where('event_id', $event->id)
+            ->count();
+        $ticketsRemaining = $event->ticket_quantity - $ticketsBought;
+
+        return response()->json([
+            'event' => $event,
+            'tickets_bought' => $ticketsBought,
+            'tickets_remaining' => $ticketsRemaining,
+        ], 200);
+    } catch (Exception $e) {
+        return response()->json(['error' => 'Erreur lors de la récupération de l\'événement', 'details' => $e->getMessage()], 500);
     }
+}
+
+
 
 
     // Voir les événements similaires
@@ -235,34 +210,33 @@ class EventController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            // Authentification de l'utilisateur
             $user = JWTAuth::parseToken()->authenticate();
             if (!$user) {
                 return response()->json(['message' => 'Non autorisé'], 401);
             }
 
-            // Récupérer l'événement à modifier
             $event = Event::find($id);
             if (!$event) {
                 return response()->json(['message' => 'Événement non trouvé'], 404);
             }
 
-            // Vérifier que l'utilisateur est le créateur de l'événement
             if ($event->organizer_id != $user->id) {
                 return response()->json(['message' => 'Non autorisé'], 403);
             }
 
-            // Validation des données
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
                 'date' => 'sometimes|date|after:today',
-                'time' => 'sometimes|date_format:H:i',
+                'time' => 'sometimes',
                 'location' => 'sometimes|string|max:255',
                 'description' => 'sometimes|string',
-                'ticket_price' => 'sometimes|numeric|min:0',
-                'ticket_quantity' => 'sometimes|integer|min:30',
-                'categories' => 'sometimes|array|exists:categories,id', // Vérifie que chaque ID existe dans la table `categories`
-                'banner' => 'required|file|mimes:jpeg,png,jpg,gif|max:2048',
+                'ticket_types' => 'sometimes|array|min:1',
+                'ticket_types.*.type' => 'required|string|max:255',
+                'ticket_types.*.price' => 'required|numeric|min:0',
+                'ticket_types.*.quantity' => 'required|integer|min:1',
+                'categories' => 'sometimes|array|min:1',
+                'categories.*' => 'exists:categories,id',
+                'banner' => 'file|mimes:jpeg,png,jpg,gif|max:2048'
             ]);
 
             if ($validator->fails()) {
@@ -271,25 +245,18 @@ class EventController extends Controller
 
             $validatedData = $validator->validated();
 
-            // Gestion de l'upload de l'image bannière, si présente
             if ($request->hasFile('banner')) {
-                // Supprimer l'ancienne bannière si nécessaire
                 if ($event->banner) {
                     Storage::disk('public')->delete($event->banner);
                 }
-
-                // Stocker la nouvelle bannière
                 $bannerPath = $request->file('banner')->store('events', 'public');
                 $validatedData['banner'] = '/storage/' . $bannerPath;
             } else {
-                // Garde l'ancienne bannière si aucune nouvelle n'est fournie
                 $validatedData['banner'] = $event->banner;
             }
 
-            // Mise à jour de l'événement
             $event->update($validatedData);
 
-            // Synchroniser les catégories avec l'événement
             if (isset($validatedData['categories'])) {
                 $event->categories()->sync($validatedData['categories']);
             }
@@ -299,6 +266,7 @@ class EventController extends Controller
             return response()->json(['error' => 'Erreur lors de la mise à jour de l\'événement', 'details' => $e->getMessage()], 500);
         }
     }
+
 
     public function dashboard($id)
     {

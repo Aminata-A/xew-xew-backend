@@ -1,0 +1,45 @@
+services:
+  app:
+    image: xewxew_backend  # Vous pouvez spécifier une image de Laravel personnalisée
+    container_name: xewxew
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_KEY=base64:eCRpIxEvMKmdWkwqa8xmlO/yKeNTc9MzmmzeiB5GWzE=
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=xew_xew
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=Root@Maami1234
+    depends_on:
+      - db
+    networks:
+      - xew-xew-network
+
+  db:
+    image: postgres  # Version PostgreSQL, peut être ajustée
+    container_name: db
+    ports:
+     - "5431:5432"
+    environment:
+      POSTGRES_DB: xew_xew
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Root@Maami1234
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - xew-xew-network
+
+networks:
+  xew-xew-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

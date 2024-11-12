@@ -10,18 +10,25 @@ class Event extends Model
 {
     use HasFactory, SoftDeletes;
 
+
+
     protected $fillable = [
         'name',
+        'description',
+        'location',
         'date',
         'time',
-        'location',
-        'event_status',
-        'description',
         'banner',
-        'ticket_quantity',
-        'ticket_price',
         'organizer_id',
+        'ticket_types', // Ajout de ticket_types ici
+        'event_status'
     ];
+
+    protected $casts = [
+        'ticket_types' => 'json', // Caster ticket_types en JSON
+    ];
+
+
 
     public function categories()
     {

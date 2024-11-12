@@ -46,8 +46,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les catégories
     Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 
-    // Routes pour les portefeuilles (Création, Modification, Suppression)
-    Route::apiResource('wallets', WalletController::class);
+
 
     // Routes pour afficher les billets pour un utilisateur connecté
     Route::get('tickets', [TicketController::class, 'index']);
@@ -81,3 +80,5 @@ Route::get('categories/{category}', [CategoryController::class, 'getCategoryEven
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
 Route::get('tickets/{ticket}', [TicketController::class, 'show']);
 // Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
+    // Routes pour les portefeuilles (Création, Modification, Suppression)
+    Route::apiResource('wallets', WalletController::class);
