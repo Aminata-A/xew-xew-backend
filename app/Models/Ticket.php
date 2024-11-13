@@ -13,6 +13,7 @@ class Ticket extends Model
         'event_id',
         'user_id',
         'wallet_id',
+        'ticket_type',
         'is_scanned',
     ];
 
