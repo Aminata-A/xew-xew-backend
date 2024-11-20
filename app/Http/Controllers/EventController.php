@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Event;
+use App\Models\Ticket;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Models\CategoryEvent;
@@ -171,17 +172,27 @@ class EventController extends Controller
     {
         try {
             $event = Event::with(['organizer', 'organizer.user', 'categories', 'wallets'])->find($id);
+
             if (!$event) {
                 return response()->json(['error' => 'Événement non trouvé'], 404);
             }
 
-            $ticketTypes = collect($event->ticket_types)->map(function ($ticketType) use ($event) {
+            // Vérifiez si ticket_types est une chaîne et décodez-la
+            $ticketTypes = is_string($event->ticket_types) ? json_decode($event->ticket_types, true) : $event->ticket_types;
+
+            if (!is_array($ticketTypes)) {
+                return response()->json(['error' => 'Les types de tickets sont invalides.'], 500);
+            }
+
+            // Calculer les tickets disponibles
+            $ticketTypes = collect($ticketTypes)->map(function ($ticketType) use ($event) {
                 $ticketsSold = DB::table('tickets')
                     ->where('event_id', $event->id)
                     ->where('ticket_type', $ticketType['type'])
                     ->count();
 
                 $ticketsAvailable = max(0, $ticketType['quantity'] - $ticketsSold);
+
                 return array_merge($ticketType, ['tickets_available' => $ticketsAvailable]);
             });
 
@@ -274,24 +285,24 @@ class EventController extends Controller
                 return response()->json(['message' => 'Non autorisé'], 403);
             }
 
+            // Décoder le champ `body` pour récupérer les données principales
             $data = json_decode($request->input('body'), true);
 
-            // Validation des données d'entrée
+            // Validation des données principales
             $validator = Validator::make($data, [
-                'name' => 'sometimes|string|max:255',
-                'date' => 'sometimes|date|after:today',
-                'time' => 'sometimes',
-                'location' => 'sometimes|string|max:255',
-                'description' => 'sometimes|string',
-                'ticket_types' => 'sometimes|array|min:1',
-                'ticket_types.*.type' => 'required|string|max:255',
-                'ticket_types.*.price' => 'required|numeric|min:0',
-                'ticket_types.*.quantity' => 'required|integer|min:1',
-                'categories' => 'sometimes|array|min:1',
+                'name' => 'nullable|string|max:255',
+                'date' => 'nullable|date|after:today',
+                'time' => 'nullable',
+                'location' => 'nullable|string|max:255',
+                'description' => 'nullable|string',
+                'ticket_types' => 'nullable|array|min:1',
+                'ticket_types.*.type' => 'required_with:ticket_types|string|max:255',
+                'ticket_types.*.price' => 'required_with:ticket_types|numeric|min:0',
+                'ticket_types.*.quantity' => 'required_with:ticket_types|integer|min:1',
+                'categories' => 'nullable|array|min:1',
                 'categories.*' => 'exists:categories,id',
-                'wallets' => 'sometimes|array|min:1',
-                'wallets.*' => 'exists:wallets,id',
-                'banner' => 'sometimes|file|mimes:jpeg,png,jpg,gif|max:2048'
+                'wallets' => 'nullable|array|min:1',
+                'wallets.*' => 'exists:wallets,id'
             ]);
 
             if ($validator->fails()) {
@@ -300,13 +311,20 @@ class EventController extends Controller
 
             $validatedData = $validator->validated();
 
-            // Gestion de l'image bannière si présente dans la requête
+            // Gestion séparée de l'image `banner`
             if ($request->hasFile('banner')) {
-                if ($event->banner) {
-                    Storage::disk('public')->delete($event->banner);
+                $banner = $request->file('banner');
+                if ($banner->isValid()) {
+                    // Supprimer l'ancienne bannière si elle existe
+                    if ($event->banner) {
+                        Storage::disk('public')->delete(str_replace('/storage/', '', $event->banner));
+                    }
+                    // Enregistrer la nouvelle bannière
+                    $bannerPath = $banner->store('events', 'public');
+                    $validatedData['banner'] = '/storage/' . $bannerPath;
+                } else {
+                    return response()->json(['error' => 'Le fichier de la bannière est invalide'], 400);
                 }
-                $bannerPath = $request->file('banner')->store('events', 'public');
-                $validatedData['banner'] = '/storage/' . $bannerPath;
             }
 
             // Mise à jour des informations principales de l'événement
@@ -317,25 +335,38 @@ class EventController extends Controller
                 'location' => $validatedData['location'] ?? $event->location,
                 'description' => $validatedData['description'] ?? $event->description,
                 'banner' => $validatedData['banner'] ?? $event->banner,
-                'ticket_types' => $validatedData['ticket_types'] ?? $event->ticket_types // Mise à jour des types de tickets en JSON
+                'ticket_types' => isset($validatedData['ticket_types']) ? json_encode($validatedData['ticket_types']) : $event->ticket_types
             ]);
 
-            // Mise à jour des catégories et des méthodes de paiement
+            // Mise à jour des relations
             if (isset($validatedData['categories'])) {
                 $event->categories()->sync($validatedData['categories']);
             }
             if (isset($validatedData['wallets'])) {
                 $event->wallets()->sync($validatedData['wallets']);
             }
+            Log::info('Données reçues pour la mise à jour:', $data = $request->all());
 
-            return response()->json(['message' => 'Événement mis à jour avec succès', 'event' => $event], 200);
+            $data = json_decode($request->input('body'), true);
+            if (!$data) {
+                return response()->json(['error' => 'Invalid JSON in body.'], 400);
+            }
+
+
+            return response()->json([
+                'message' => 'Événement mis à jour avec succès',
+                'event' => $event->fresh() // Rafraîchir pour inclure les relations mises à jour
+            ], 200);
         } catch (Exception $e) {
-            return response()->json(['error' => 'Erreur lors de la mise à jour de l\'événement', 'details' => $e->getMessage()], 500);
+            Log::error('Erreur lors de la mise à jour de l\'événement: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur lors de la mise à jour de l\'événement',
+                'details' => $e->getMessage()
+            ], 500);
         }
     }
 
-
-
+    // Voir les statistique d'un evenment
     public function dashboard($id)
     {
         try {
@@ -347,8 +378,8 @@ class EventController extends Controller
             if ($publishedAt) {
                 $now = now();
                 $diffInDays = floor($now->diffInDays($publishedAt));
-                $diffInHours = floor($now->diffInHours($publishedAt) % 24); // heures restantes après les jours
-                $diffInMinutes = floor($now->diffInMinutes($publishedAt) % 60); // minutes restantes après les heures
+                $diffInHours = floor($now->diffInHours($publishedAt) % 24);
+                $diffInMinutes = floor($now->diffInMinutes($publishedAt) % 60);
 
                 // Construire une chaîne de durée arrondie
                 $durationSincePublication = "{$diffInDays} jours, {$diffInHours}:{$diffInMinutes}";
@@ -357,19 +388,46 @@ class EventController extends Controller
             }
 
             // Format de la date et heure de publication
-            $formattedDate = $publishedAt ? $publishedAt->format('d-m-Y') : null; // Format jour-mois-année
-            $formattedTime = $publishedAt ? $publishedAt->format('H:i') : null; // Heure:min arrondie
-
+            $formattedDate = $publishedAt ? $publishedAt->format('d-m-Y') : null;
+            $formattedTime = $publishedAt ? $publishedAt->format('H:i') : null;
 
             // Calcul des statistiques
-            $ticketsSold = DB::table('tickets')->where('event_id', $event->id)->count();
-            $revenue = $ticketsSold * $event->ticket_price;
-            $ticketsRemaining = $event->ticket_quantity - $ticketsSold;
+            $totalTickets = $event->ticket_quantity;
 
+            // Récupération des tickets associés
+            $tickets = Ticket::where('event_id', $event->id)->get();
+
+            // Tickets vendus (achetés ou gratuits)
+            $ticketsSold = $tickets->count();
+
+            // Calcul des revenus
+            $revenue = $tickets->sum(function ($ticket) {
+                $ticketType = collect($ticket->event->ticket_types)->firstWhere('type', $ticket->ticket_type);
+                return isset($ticketType['price']) ? (float) $ticketType['price'] : 0;
+            });
+
+            // Tickets restants
+            $ticketsRemaining = $totalTickets - $ticketsSold;
+
+            // Tickets scannés
+            $scannedTickets = $tickets->where('is_scanned', true)->count();
+
+            // Tickets non scannés
+            $unscannedTickets = $ticketsSold - $scannedTickets;
+
+            // Pourcentage de tickets scannés
+            $scannedPercentage = $ticketsSold > 0 ? round(($scannedTickets / $ticketsSold) * 100, 2) : 0;
+
+            // Détail des acheteurs de tickets
             $ticketHolders = DB::table('tickets')
                 ->join('users', 'tickets.user_id', '=', 'users.id')
                 ->where('tickets.event_id', $event->id)
-                ->select('users.id', 'users.name', 'users.email', 'tickets.created_at as purchase_date')
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'users.email',
+                    'tickets.created_at as purchase_date'
+                )
                 ->get();
 
             return response()->json([
@@ -381,15 +439,19 @@ class EventController extends Controller
                     'tickets_sold' => $ticketsSold,
                     'tickets_remaining' => $ticketsRemaining,
                     'revenue' => $revenue,
+                    'scanned_tickets' => $scannedTickets,
+                    'unscanned_tickets' => $unscannedTickets,
+                    'scanned_percentage' => $scannedPercentage,
                 ],
                 'ticket_holders' => $ticketHolders
             ]);
         } catch (Exception $e) {
-            return response()->json(['error' => 'Erreur lors de la récupération du tableau de bord', 'details' => $e->getMessage()], 500);
+            return response()->json([
+                'error' => 'Erreur lors de la récupération du tableau de bord',
+                'details' => $e->getMessage()
+            ], 500);
         }
     }
-
-
 
 
 

@@ -93,77 +93,86 @@ class TicketController extends Controller
                 return response()->json(['message' => 'Événement non trouvé.'], 404);
             }
 
-            // Vérifier que le type de ticket existe dans l'événement
-            $ticketType = collect($event->ticket_types)->firstWhere('type', $data['ticket_type']);
-            if (!$ticketType) {
-                return response()->json(['message' => 'Type de ticket non trouvé pour cet événement.'], 404);
-            }
+            $ticketsToCreate = [];
+            $totalPrice = 0;
 
-            // Limiter le nombre de billets à 5 par utilisateur pour ce type de ticket
-            $maxTicketsPerUser = 5;
-            $userTicketsForEvent = Ticket::where('event_id', $event->id)
-                ->where('user_id', $user->id)
-                ->where('ticket_type', $data['ticket_type'])
-                ->count();
+            foreach ($data['tickets'] as $ticketRequest) {
+                $ticketType = collect($event->ticket_types)->firstWhere('type', $ticketRequest['ticket_type']);
+                if (!$ticketType) {
+                    return response()->json(['message' => 'Type de ticket non trouvé: ' . $ticketRequest['ticket_type']], 404);
+                }
 
-            if ($userTicketsForEvent + $data['quantity'] > $maxTicketsPerUser) {
-                return response()->json([
-                    'message' => 'Vous avez dépassé le nombre limite d\'achat de billets par type (max ' . $maxTicketsPerUser . ').'
-                ], 400);
-            }
+                // Limite de billets par utilisateur
+                $maxTicketsPerUser = 5;
+                $userTicketsForType = Ticket::where('event_id', $event->id)
+                    ->where('user_id', $user->id)
+                    ->where('ticket_type', $ticketRequest['ticket_type'])
+                    ->count();
 
-            // Compter le nombre total de tickets déjà achetés pour ce type
-            $ticketsBought = Ticket::where('event_id', $event->id)
-                ->where('ticket_type', $data['ticket_type'])
-                ->count();
+                if ($userTicketsForType + $ticketRequest['quantity'] > $maxTicketsPerUser) {
+                    return response()->json([
+                        'message' => 'Limite dépassée pour le type de ticket: ' . $ticketRequest['ticket_type']
+                    ], 400);
+                }
 
-            if ($ticketsBought + $data['quantity'] > $ticketType['quantity']) {
-                $availableTickets = $ticketType['quantity'] - $ticketsBought;
-                return response()->json([
-                    'message' => 'Il ne reste que ' . $availableTickets . ' tickets pour ce type.'
-                ], 400);
-            }
+                // Vérifier la disponibilité
+                $ticketsBought = Ticket::where('event_id', $event->id)
+                    ->where('ticket_type', $ticketRequest['ticket_type'])
+                    ->count();
 
-            // Gestion des tickets gratuits
-            if ($ticketType['price'] == 0) {
-                $tickets = [];
-                for ($i = 0; $i < $data['quantity']; $i++) {
-                    $ticket = Ticket::create([
+                if ($ticketsBought + $ticketRequest['quantity'] > $ticketType['quantity']) {
+                    $availableTickets = $ticketType['quantity'] - $ticketsBought;
+                    return response()->json([
+                        'message' => 'Seulement ' . $availableTickets . ' tickets disponibles pour: ' . $ticketRequest['ticket_type']
+                    ], 400);
+                }
+
+                // Calculer le prix total
+                $totalPrice += $ticketType['price'] * $ticketRequest['quantity'];
+
+                // Préparer les tickets pour la création
+                for ($i = 0; $i < $ticketRequest['quantity']; $i++) {
+                    $ticketsToCreate[] = [
                         'event_id' => $event->id,
                         'user_id' => $user->id,
-                        'ticket_type' => $data['ticket_type'],
-                        'is_paid' => true
-                    ]);
-                    $tickets[] = $ticket;
+                        'ticket_type' => $ticketRequest['ticket_type'],
+                        'is_paid' => $ticketType['price'] == 0, // Gratuit si le prix est 0
+                    ];
+                }
+            }
+
+            // Gérer les tickets gratuits
+            if ($totalPrice == 0) {
+                foreach ($ticketsToCreate as $ticketData) {
+                    Ticket::create($ticketData);
                 }
 
                 return response()->json([
-                    'message' => 'Tickets créés avec succès pour un type de ticket gratuit.',
-                    'tickets' => $tickets
+                    'message' => 'Tickets gratuits créés avec succès.',
+                    'tickets' => $ticketsToCreate
                 ], 201);
             }
 
-            // Si l'événement est payant, gérer la transaction via Naboopay
-            $unitPrice = $ticketType['price'];
+            // Gérer les tickets payants via Naboopay
             $paymentMethods = array_map('strtoupper', $event->wallets->pluck('name')->toArray());
             $transactionData = [
                 'method_of_payment' => $paymentMethods,
-                'products' => [
-                    [
-                        'name' => "Ticket pour l'événement " . $event->name,
+                'products' => array_map(function ($ticketRequest) use ($event) {
+                    return [
+                        'name' => "Ticket pour l'événement " . $event->name . " - " . $ticketRequest['ticket_type'],
                         'category' => 'Event Ticket',
-                        'amount' => $unitPrice,
-                        'quantity' => $data['quantity'],
+                        'amount' => collect($event->ticket_types)->firstWhere('type', $ticketRequest['ticket_type'])['price'],
+                        'quantity' => $ticketRequest['quantity'],
                         'description' => 'Billet pour assister à l\'événement: ' . $event->name,
-                    ]
-                ],
+                    ];
+                }, $data['tickets']),
                 'success_url' => env('APP_URL_DEV') . '/tickets/webhook',
                 'error_url' => env('APP_URL_DEV') . '/tickets/error',
                 'is_escrow' => false,
                 'is_merchant' => false,
             ];
 
-            // Gérer la transaction via Naboopay
+            // Créer la transaction via Naboopay
             $response = $this->createNaboopayTransaction($transactionData);
 
             if (!$response || $response->getStatusCode() !== 200) {
@@ -172,30 +181,17 @@ class TicketController extends Controller
 
             $transactionDetails = json_decode($response->getBody(), true);
 
-            // Vérifiez que la clé ticket_type est bien définie dans les données de la requête
-            if (empty($data['ticket_type'])) {
-                return response()->json(['message' => 'Le type de ticket est requis.'], 400);
-            }
-
-            // Créer des tickets avec statut "not paid"
-            $tickets = [];
-            for ($i = 0; $i < $data['quantity']; $i++) {
-                $ticket = Ticket::create([
-                    'event_id' => $event->id,
-                    'user_id' => $user->id,
-                    'ticket_type' => $data['ticket_type'], // Vérifiez que cette valeur est bien définie
+            // Créer les tickets en attente de paiement
+            foreach ($ticketsToCreate as $ticketData) {
+                Ticket::create(array_merge($ticketData, [
                     'naboo_order_id' => $transactionDetails['order_id'],
-                    'is_paid' => false,
-                ]);
-                $tickets[] = $ticket;
+                ]));
             }
-
-
 
             return response()->json(['payment_url' => $transactionDetails['checkout_url']], 201);
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la création du billet:', ['error' => $e->getMessage()]);
-            return response()->json(['message' => 'Erreur lors de la création du billet.', 'error' => $e->getMessage()], 500);
+            Log::error('Erreur lors de la création des billets:', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Erreur lors de la création des billets.', 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -337,4 +333,63 @@ class TicketController extends Controller
             return response()->json(['message' => 'Erreur lors de la récupération du billet.', 'error' => $e->getMessage()], 500);
         }
     }
+
+
+    public function scanTicket($ticketId)
+    {
+        try {
+            // Authentification via JWT
+            if (!$user = JWTAuth::parseToken()->authenticate()) {
+                Log::warning('Utilisateur non authentifié');
+                return response()->json(['message' => 'Utilisateur non authentifié'], 401);
+            }
+            Log::info('Authentification réussie', ['user_id' => $user->id]);
+
+            // Recherche du ticket
+            $ticket = Ticket::find($ticketId);
+            if (!$ticket) {
+                Log::warning('Ticket non trouvé', ['ticket_id' => $ticketId]);
+                return response()->json(['message' => 'Ticket non trouvé.'], 404);
+            }
+
+            // Vérification du scan et du paiement
+            if ($ticket->is_scanned) {
+                Log::info('Ticket déjà scanné', ['ticket_id' => $ticketId]);
+                return response()->json(['message' => 'Le ticket a déjà été scanné.'], 400);
+            }
+
+            $ticketType = collect($ticket->event->ticket_types)->firstWhere('type', $ticket->ticket_type);
+            $ticketPrice = $ticketType['price'] ?? 0;
+
+            if ($ticketPrice > 0 && !$ticket->is_paid) {
+                Log::warning('Ticket non payé', ['ticket_id' => $ticketId]);
+                return response()->json(['message' => 'Ce ticket n\'a pas encore été payé.'], 400);
+            }
+
+            // Validation et mise à jour
+            $ticket->is_scanned = true;
+            $ticket->save();
+            Log::info('Ticket scanné avec succès', ['ticket_id' => $ticketId]);
+
+            return response()->json([
+                'message' => 'Ticket scanné avec succès.',
+                'ticket' => [
+                    'ticket_id' => $ticket->id,
+                    'is_scanned' => $ticket->is_scanned,
+                    'is_paid' => $ticket->is_paid,
+                    'event_name' => $ticket->event->name ?? 'Nom de l\'événement indisponible',
+                    'purchase_date' => $ticket->created_at->format('Y-m-d H:i:s'),
+                    'price' => $ticketPrice
+                ]
+            ], 200);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            Log::error('Token expiré');
+            return response()->json(['message' => 'Le token a expiré. Veuillez vous reconnecter.'], 401);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du scan du ticket', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Erreur lors du scan du ticket.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+
 }

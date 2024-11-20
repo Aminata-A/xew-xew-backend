@@ -82,3 +82,4 @@ Route::get('tickets/{ticket}', [TicketController::class, 'show']);
 // Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
     // Routes pour les portefeuilles (Création, Modification, Suppression)
     Route::apiResource('wallets', WalletController::class);
+    Route::get('events/{eventId}/statistics', [TicketController::class, 'getEventStatistics']);
