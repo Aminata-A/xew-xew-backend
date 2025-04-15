@@ -15,45 +15,60 @@ class VerifyEmailController extends Controller
     public function verify(Request $request)
     {
         $id = null;
-        // Retrieve email from the request
-        $email = $request->input(key: 'email');
-        // dd($email);
+        // Récupérer l'email de la requête
+        $email = $request->input('email');
 
-        // Check if email is provided
+        // Vérifier si l'email est fourni
         if (!$email) {
-            return response()->json(['error' => 'Email is required'], 400);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.email.required')
+            ], 400);
         }
 
-        // Validate the email using regex
+        // Valider l'email avec une expression régulière
         $emailRegex = "/^[a-zA-Z0-9.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/";
 
         if (!preg_match($emailRegex, $email)) {
-            return response()->json(['error' => 'Invalid email format'], 400);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.email.invalid')
+            ], 400);
         }
 
-        // Check if the user exists
+        // Vérifier si l'utilisateur existe
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            // Check if the userable relationship is a RegisteredUser
+            // Vérifier si la relation userable est un RegisteredUser
             if ($user->userable instanceof RegisteredUser) {
-                return response()->json(['message' => 'User already exists as RegisteredUser'], 200);
+                return response()->json([
+                    'success' => true,
+                    'message' => config('messages.authentification.errors.account.already_verified')
+                ], 200);
             }
             $id = $user->id;
         }
 
-        // Generate a 6-digit code
+        // Générer un code à 6 chiffres
         $code = rand(100000, 999999);
 
-        // Store the code in Redis with an expiration time (e.g., 10 minutes)
-        Redis::set("verification_code:{$email}", $code, 'EX', 600); // 600 seconds = 10 minutes
+        // Stocker le code dans Redis avec un temps d'expiration (10 minutes)
+        Redis::set("verification_code:{$email}", $code, 'EX', 600);
 
-        // Send the code to the provided email
-        Mail::to($email)->send(mailable: new SendCodeEmail($code));
-
-        return response()->json(['message' => 'Code sent to the provided email address', 'id' => $id],200);
-
+        // Envoyer le code à l'email fourni
+        try {
+            Mail::to($email)->send(new SendCodeEmail($code));
+            return response()->json([
+                'success' => true,
+                'message' => config('messages.authentification.success.email_verification_sent'),
+                'id' => $id
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.email.verification_failed')
+            ], 500);
+        }
     }
-
-
 }

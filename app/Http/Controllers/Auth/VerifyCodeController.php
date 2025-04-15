@@ -17,12 +17,18 @@ class VerifyCodeController extends Controller
 
         // Vérifier si l'email est fourni
         if (!$email) {
-            return response()->json(['error' => 'L\'email est requis.'], 400);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.email.required')
+            ], 400);
         }
 
         // Vérifier si le code est fourni
         if (!$inputCode) {
-            return response()->json(['error' => 'Le code est requis.'], 400);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.code.required')
+            ], 400);
         }
 
         // Récupérer le code stocké dans Redis
@@ -30,17 +36,34 @@ class VerifyCodeController extends Controller
 
         // Vérifier si le code existe et correspond
         if (!$storedCode) {
-            return response()->json(['error' => 'Aucun code trouvé ou le code a expiré.'], 404);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.code.expired')
+            ], 404);
         }
 
         if ($storedCode != $inputCode) {
-            return response()->json(['error' => 'Code invalide.'], 400);
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.validation.code.invalid')
+            ], 400);
         }
 
-        // Générer un token JWT après la vérification du code
-        $token = $this->generateRegisterJWT($email);
+        try {
+            // Générer un token JWT après la vérification du code
+            $token = $this->generateRegisterJWT($email);
 
-        return response()->json(['message' => 'Code vérifié avec succès', 'token' => $token], 200);
+            return response()->json([
+                'success' => true,
+                'message' => config('messages.authentification.success.code_verified'),
+                'token' => $token
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => config('messages.authentification.errors.general.unexpected')
+            ], 500);
+        }
     }
 
     private function generateRegisterJWT($email)
