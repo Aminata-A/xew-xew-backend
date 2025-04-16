@@ -12,85 +12,73 @@ use App\Http\Controllers\Auth\VerifyCodeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Auth\AuthentificationController;
 
-// Routes publiques pour les authentifications
-Route::post('auth/register', [AuthentificationController::class, 'register'])->name('register');
-Route::post('auth/login', [AuthentificationController::class, 'login'])->name('login');
+/*
+|--------------------------------------------------------------------------
+| Routes API
+|--------------------------------------------------------------------------
+*/
 
-// Routes pour la vérification de l'email et du code
-Route::post('auth/verify-email', [VerifyEmailController::class, 'verify']);
-Route::post('auth/verify-code', [VerifyCodeController::class, 'verifyCode']);
+// ✅ Routes d'authentification publiques avec préfixe clair et noms définis
+Route::prefix('auth')->group(function () {
+    Route::post('/register', [AuthentificationController::class, 'register'])->name('auth.register');
+    Route::post('/login', [AuthentificationController::class, 'login'])->name('auth.login');
+    Route::post('/verify-email', [VerifyEmailController::class, 'verifyEmail'])->name('auth.verify.email');
+    Route::post('/verify-code', [VerifyCodeController::class, 'verifyCode'])->name('auth.verify.code');
 
-Route::get('auth/user-profile', [AuthentificationController::class, 'getUserProfile']);
-
-Route::post('auth/logout', [AuthentificationController::class, 'logout']);
-
-
-
-// Routes protégées par le token (auth:api)
-Route::middleware('auth:api')->group(function () {
-    // Routes pour les événements (Création, Modification, Suppression)
-    Route::apiResource('events', EventController::class)->only(['store', 'destroy']);
-
-    // Route pour mettre à jour un événement
-    Route::post('events/{event}/update', [EventController::class, 'update'])->name('events.update');
-
-    // Route pour restaurer un événement supprimé
-    Route::post('events/{event}/restore', [EventController::class, 'restore']);
-
-    // Route pour supprimer définitivement un événement
-    Route::delete('events/{event}/force-destroy', [EventController::class, 'forceDestroy']);
-
-    // Route pour afficher les événements archivés
-    Route::get('events/trash', [EventController::class, 'trash']);
-
-    // Routes pour les catégories
-    Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
-
-
-
-    // Routes pour afficher les billets pour un utilisateur connecté
-    Route::get('tickets', [TicketController::class, 'index']);
-
-    // Routes afficher les evenements creer par l'utilisateur connecté
-    Route::get('/events/my-events', [EventController::class, 'myEvents'])->name('events.my-events');
-
-    // Route pour scanner le QR code
-    Route::post('tickets/scan/{ticket}', [TicketController::class, 'scanTicket']);
-
-    //  Route poour afficher le dashboard
+    // ✅ Routes protégées avec middleware
+    Route::middleware('auth:api')->group(function () {
+        Route::get('/profile', [AuthentificationController::class, 'getUserProfile'])->name('auth.profile');
+        Route::put('/profile', [AuthentificationController::class, 'updateProfile'])->name('auth.profile.update');
+        Route::post('/logout', [AuthentificationController::class, 'logout'])->name('auth.logout');
+    });
 });
 
-// Route dans le backend
-Route::get('/events/{id}/dashboard', [EventController::class, 'dashboard']);
-
-// Route publique pour les catégories
-Route::apiResource('categories', CategoryController::class)->except(['store', 'update', 'destroy']);
-
-// Routes publiques pour les billets (Création)
-Route::post('tickets', [TicketController::class, 'store']);
-
-// Routes publiques pour les  événements (Voir liste, voir un élément)
+// ✅ Routes publiques pour les événements (voir tous ou un)
 Route::apiResource('events', EventController::class)->only(['index', 'show']);
 
-// Routes public pout voir les categories des evenements
-Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show']);
-Route::get('/events/{id}/similar', [EventController::class, 'similarEvents']);
+// ✅ Route publique : voir événements similaires
+Route::get('/events/{id}/similar', [EventController::class, 'similarEvents'])->name('events.similar');
 
-Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations']);
+// ✅ Route publique : dashboard d’un événement
+Route::get('/events/{id}/dashboard', [EventController::class, 'dashboard'])->name('events.dashboard');
+
+// ✅ Routes publiques pour les catégories (liste et détail uniquement)
+Route::apiResource('categories', CategoryController::class)->except(['store', 'update', 'destroy']);
+Route::get('categories/{category}', [CategoryController::class, 'getCategoryEventAssociations'])->name('categories.event-associations');
+
+// ✅ Route publique : événements liés à une catégorie (dupliquée ici, à harmoniser plus tard)
+Route::apiResource('categorieEvents', EventController::class)->only(['index', 'show'])->names('category.events');
+
+// ✅ Routes publiques pour les tickets
+Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
+Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
-Route::get('tickets/{ticket}', [TicketController::class, 'show']);
-// Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
-// Routes pour les portefeuilles (Création, Modification, Suppression)
-Route::apiResource('wallets', WalletController::class);
-Route::get('events/{eventId}/statistics', [TicketController::class, 'getEventStatistics']);
 
-// Routes d'authentification
-Route::prefix('auth')->group(function () {
-    Route::post('/verify-email', [VerifyEmailController::class, 'verifyEmail']);
-    Route::post('/verify-code', [VerifyCodeController::class, 'verifyCode']);
-    Route::post('/register', [AuthentificationController::class, 'register']);
-    Route::post('/login', [AuthentificationController::class, 'login']);
-    Route::post('/logout', [AuthentificationController::class, 'logout'])->middleware('auth:api');
-    Route::get('/profile', [AuthentificationController::class, 'getUserProfile'])->middleware('auth:api');
-    Route::put('/profile', [AuthentificationController::class, 'updateProfile'])->middleware('auth:api');
+// ✅ Routes pour les statistiques d’événement
+Route::get('events/{eventId}/statistics', [TicketController::class, 'getEventStatistics'])->name('events.statistics');
+
+// ✅ Routes pour les portefeuilles
+Route::apiResource('wallets', WalletController::class);
+
+// ✅ Routes protégées par token (auth:api)
+Route::middleware('auth:api')->group(function () {
+    // 🎫 Tickets liés à l’utilisateur connecté
+    Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
+
+    // 📅 Événements créés par l’utilisateur
+    Route::get('/events/my-events', [EventController::class, 'myEvents'])->name('events.my-events');
+
+    // 🎫 Scanner un ticket via QR code
+    Route::post('tickets/scan/{ticket}', [TicketController::class, 'scanTicket'])->name('tickets.scan');
+
+    // 📦 Gestion des événements (CRUD partiel + archive)
+    Route::apiResource('events', EventController::class)->only(['store', 'destroy']);
+
+    Route::post('events/{event}/update', [EventController::class, 'update'])->name('events.update');
+    Route::post('events/{event}/restore', [EventController::class, 'restore'])->name('events.restore');
+    Route::delete('events/{event}/force-destroy', [EventController::class, 'forceDestroy'])->name('events.force-destroy');
+    Route::get('events/trash', [EventController::class, 'trash'])->name('events.trash');
+
+    // 🗂 Gestion protégée des catégories
+    Route::apiResource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 });

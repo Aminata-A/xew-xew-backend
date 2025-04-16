@@ -132,8 +132,12 @@ class AuthentificationController extends Controller
             return response()->json(['success' => false, 'message' => 'Votre compte est inactif'], 401);
         }
 
-        // Générer le token JWT
-        $token = JWTAuth::fromUser($registeredUser);
+        // Générer le token JWT avec les claims personnalisés
+        $token = JWTAuth::customClaims([
+            'iss' => config('app.url'),
+            'sub' => $registeredUser->id,
+            'role' => $registeredUser->role
+        ])->fromUser($registeredUser);
 
         return response()->json([
             'success' => true,
@@ -145,22 +149,22 @@ class AuthentificationController extends Controller
     public function getUserProfile()
     {
         try {
-            // Vérifier si un token JWT est présent et authentifier l'utilisateur
-            if (! $user = JWTAuth::parseToken()->authenticate()) {
-                return response()->json(['success' => false, 'message' => 'Vous devez être connecté pour voir vos informations.'], 401);
-            }
+            // ✅ Extraire l'ID du RegisteredUser à partir du token
+            $registeredUserId = JWTAuth::parseToken()->getPayload()->get('sub');
 
-            // Récupérer l'utilisateur enregistré directement
-            $registeredUser = RegisteredUser::find($user->userable_id);
+            // ✅ Charger le RegisteredUser avec ses relations
+            $registeredUser = RegisteredUser::with(['user', 'categories', 'wallets'])->find($registeredUserId);
 
-            if (!$registeredUser) {
+            if (!$registeredUser || !$registeredUser->user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Utilisateur non trouvé'
                 ], 404);
             }
 
-            // Informations de base
+            $user = $registeredUser->user;
+
+            // ✅ Structuration des données utilisateur
             $userData = [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -169,28 +173,52 @@ class AuthentificationController extends Controller
                 'role' => $registeredUser->role,
                 'balance' => $registeredUser->balance,
                 'status' => $registeredUser->status,
-                'photo' => $registeredUser->photo,
+                'photo' => $registeredUser->photo ? url($registeredUser->photo) : null,
+                'created_at' => $user->created_at->format('Y-m-d H:i:s'),
+                'updated_at' => $user->updated_at->format('Y-m-d H:i:s')
             ];
 
-            // Si l'utilisateur est un organisateur, ajouter les informations spécifiques
             if ($registeredUser->role === 'organizer') {
-                $userData['organization_name'] = $registeredUser->organization_name;
-                $userData['organization_type'] = $registeredUser->organization_type;
+                $userData['organization'] = [
+                    'name' => $registeredUser->organization_name,
+                    'type' => $registeredUser->organization_type
+                ];
 
-                // Charger les catégories avec leurs détails
-                $userData['event_types'] = $registeredUser->categories()->select('id', 'label', 'description')->get();
+                $userData['event_types'] = $registeredUser->categories->map(function ($cat) {
+                    return [
+                        'id' => $cat->id,
+                        'label' => $cat->label,
+                        'description' => $cat->description
+                    ];
+                });
             }
+
+            $userData['wallets'] = $registeredUser->wallets->map(function ($wallet) {
+                return [
+                    'id' => $wallet->id,
+                    'balance' => $wallet->balance,
+                    'currency' => $wallet->currency,
+                    'created_at' => $wallet->created_at->format('Y-m-d H:i:s')
+                ];
+            });
 
             return response()->json([
                 'success' => true,
-                'user' => $userData
+                'data' => [
+                    'user' => $userData
+                ]
             ], 200);
+
         } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-            return response()->json(['success' => false, 'message' => 'Token expiré, veuillez vous reconnecter.'], 401);
-        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-            return response()->json(['success' => false, 'message' => 'Token invalide.'], 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'Token expiré, veuillez vous reconnecter.'
+            ], 401);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-            return response()->json(['success' => false, 'message' => 'Le token est absent.'], 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'Le token est absent ou invalide.'
+            ], 401);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -199,6 +227,7 @@ class AuthentificationController extends Controller
             ], 500);
         }
     }
+
 
     public function logout()
     {
