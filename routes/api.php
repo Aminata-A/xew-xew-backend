@@ -80,6 +80,17 @@ Route::get('categories/{category}', [CategoryController::class, 'getCategoryEven
 Route::post('/tickets/webhook', [TicketController::class, 'webhook'])->name('tickets.webhook');
 Route::get('tickets/{ticket}', [TicketController::class, 'show']);
 // Route::get('/events?category=${categoryId}', [EventController::class, 'index']);
-    // Routes pour les portefeuilles (Création, Modification, Suppression)
-    Route::apiResource('wallets', WalletController::class);
-    Route::get('events/{eventId}/statistics', [TicketController::class, 'getEventStatistics']);
+// Routes pour les portefeuilles (Création, Modification, Suppression)
+Route::apiResource('wallets', WalletController::class);
+Route::get('events/{eventId}/statistics', [TicketController::class, 'getEventStatistics']);
+
+// Routes d'authentification
+Route::prefix('auth')->group(function () {
+    Route::post('/verify-email', [VerifyEmailController::class, 'verifyEmail']);
+    Route::post('/verify-code', [VerifyCodeController::class, 'verifyCode']);
+    Route::post('/register', [AuthentificationController::class, 'register']);
+    Route::post('/login', [AuthentificationController::class, 'login']);
+    Route::post('/logout', [AuthentificationController::class, 'logout'])->middleware('auth:api');
+    Route::get('/profile', [AuthentificationController::class, 'getUserProfile'])->middleware('auth:api');
+    Route::put('/profile', [AuthentificationController::class, 'updateProfile'])->middleware('auth:api');
+});

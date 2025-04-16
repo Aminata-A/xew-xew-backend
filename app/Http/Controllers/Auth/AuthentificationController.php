@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
+use App\Models\Category;
 
 class AuthentificationController extends Controller
 {
@@ -62,15 +63,30 @@ class AuthentificationController extends Controller
             }
         }
 
-        // Créer l'utilisateur inscrit
-        $registeredUser = new RegisteredUser([
+        // Préparer les données de base pour l'utilisateur inscrit
+        $registeredUserData = [
             'role' => $request->input('role'),
             'password' => Hash::make($request->input('password')),
             'balance' => 0,
             'status' => 'active',
             'photo' => $profilePhotoPath ? '/storage/' . $profilePhotoPath : null,
-        ]);
+        ];
+
+        // Ajouter les champs spécifiques aux organisateurs
+        if ($request->input('role') === 'organizer') {
+            $registeredUserData['organization_name'] = $request->input('organization_name');
+            $registeredUserData['organization_type'] = $request->input('organization_type');
+        }
+
+        // Créer l'utilisateur inscrit
+        $registeredUser = new RegisteredUser($registeredUserData);
         $registeredUser->save();
+
+        // Associer les catégories si c'est un organisateur
+        if ($request->input('role') === 'organizer' && $request->has('event_types')) {
+            $categories = Category::whereIn('id', $request->input('event_types'))->get();
+            $registeredUser->categories()->attach($categories);
+        }
 
         // Associer l'utilisateur de base au RegisteredUser
         $user = new User([
@@ -134,22 +150,40 @@ class AuthentificationController extends Controller
                 return response()->json(['success' => false, 'message' => 'Vous devez être connecté pour voir vos informations.'], 401);
             }
 
-            // Récupérer les informations utilisateur
-            $userProfile = $user;
+            // Récupérer l'utilisateur enregistré directement
+            $registeredUser = RegisteredUser::find($user->userable_id);
 
-            // Retourner les informations combinées dans un seul tableau
+            if (!$registeredUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé'
+                ], 404);
+            }
+
+            // Informations de base
+            $userData = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $registeredUser->role,
+                'balance' => $registeredUser->balance,
+                'status' => $registeredUser->status,
+                'photo' => $registeredUser->photo,
+            ];
+
+            // Si l'utilisateur est un organisateur, ajouter les informations spécifiques
+            if ($registeredUser->role === 'organizer') {
+                $userData['organization_name'] = $registeredUser->organization_name;
+                $userData['organization_type'] = $registeredUser->organization_type;
+
+                // Charger les catégories avec leurs détails
+                $userData['event_types'] = $registeredUser->categories()->select('id', 'label', 'description')->get();
+            }
+
             return response()->json([
                 'success' => true,
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->user->name ?? $userProfile->user->name,
-                    'email' => $user->user->email,
-                    'phone' => $user->user->phone,
-                    'role' => $userProfile->role ?? null,
-                    'balance' => $userProfile->balance ?? null,
-                    'status' => $userProfile->status ?? null,
-                    'photo' => $userProfile->photo ?? null,
-                ]
+                'user' => $userData
             ], 200);
         } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
             return response()->json(['success' => false, 'message' => 'Token expiré, veuillez vous reconnecter.'], 401);
@@ -158,7 +192,11 @@ class AuthentificationController extends Controller
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
             return response()->json(['success' => false, 'message' => 'Le token est absent.'], 401);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erreur lors de la récupération du profil utilisateur.'], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du profil utilisateur.',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -173,7 +211,17 @@ class AuthentificationController extends Controller
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            // Mettre à jour les informations de l'utilisateur
+            // Récupérer l'utilisateur enregistré directement
+            $registeredUser = RegisteredUser::find($user->userable_id);
+
+            if (!$registeredUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé'
+                ], 404);
+            }
+
+            // Mettre à jour les informations de base de l'utilisateur
             if ($request->has('name')) {
                 $user->name = $request->input('name');
             }
@@ -182,28 +230,81 @@ class AuthentificationController extends Controller
                 $user->phone = $request->input('phone');
             }
 
+            // Mettre à jour les informations de l'utilisateur enregistré
+            if ($request->has('password')) {
+                $registeredUser->password = Hash::make($request->input('password'));
+            }
+
+            if ($request->has('role')) {
+                $registeredUser->role = $request->input('role');
+            }
+
+            if ($request->has('status')) {
+                $registeredUser->status = $request->input('status');
+            }
+
+            if ($request->has('balance')) {
+                $registeredUser->balance = $request->input('balance');
+            }
+
             // Gestion de la photo de profil
             if ($request->hasFile('photo')) {
                 // Supprimer l'ancienne photo si elle existe
-                if ($user->photo) {
-                    Storage::disk('public')->delete($user->photo);
+                if ($registeredUser->photo) {
+                    Storage::disk('public')->delete($registeredUser->photo);
                 }
 
                 // Sauvegarder la nouvelle photo
                 $photoPath = $request->file('photo')->store('profile_photos', 'public');
-                $user->photo = $photoPath;
+                $registeredUser->photo = $photoPath;
+            }
+
+            // Si l'utilisateur est un organisateur, mettre à jour les informations spécifiques
+            if ($registeredUser->role === 'organizer') {
+                if ($request->has('organization_name')) {
+                    $registeredUser->organization_name = $request->input('organization_name');
+                }
+
+                if ($request->has('organization_type')) {
+                    $registeredUser->organization_type = $request->input('organization_type');
+                }
+
+                // Mettre à jour les types d'événements
+                if ($request->has('event_types')) {
+                    $registeredUser->categories()->sync($request->input('event_types'));
+                }
             }
 
             // Sauvegarder les changements
             $user->save();
+            $registeredUser->save();
+
+            // Charger les relations pour la réponse
+            $registeredUser->load(['categories', 'user']);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Profil mis à jour avec succès',
-                'user' => $user
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $registeredUser->role,
+                    'status' => $registeredUser->status,
+                    'balance' => $registeredUser->balance,
+                    'photo' => $registeredUser->photo,
+                    'organization_name' => $registeredUser->organization_name,
+                    'organization_type' => $registeredUser->organization_type,
+                    'categories' => $registeredUser->categories
+                ]
             ], 200);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erreur lors de la mise à jour du profil.'], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du profil',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

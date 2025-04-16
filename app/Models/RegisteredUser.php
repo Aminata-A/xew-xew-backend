@@ -13,22 +13,25 @@ class RegisteredUser extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable;
 
-        // Add the methods required by the JWTSubject interface
-        public function getJWTIdentifier()
-        {
-            return $this->getKey();
-        }
+    // Add the methods required by the JWTSubject interface
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
 
-        public function getJWTCustomClaims()
-        {
-            return [];
-        }
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
     protected $fillable = [
         'password',
         'role',
         'balance',
         'photo',
-        'status'
+        'status',
+        'organization_name',
+        'organization_type',
+        'event_types'
     ];
 
     // public function event(){
@@ -39,12 +42,17 @@ class RegisteredUser extends Authenticatable implements JWTSubject
         return $this->morphOne(User::class, 'userable');
     }
 
-    public function wallets(){
+    public function wallets()
+    {
         return $this->hasMany(Wallet::class);
     }
 
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'organizer_categories');
+    }
 
-       /**
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var array<int, string>
