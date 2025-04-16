@@ -238,78 +238,53 @@ class AuthentificationController extends Controller
     public function updateProfile(UpdateProfileRequest $request)
     {
         try {
-            $user = JWTAuth::parseToken()->authenticate();
+            // 🔐 Authentifier le registered user à partir du token
+            $registeredUserId = JWTAuth::parseToken()->getPayload()->get('sub');
+            $registeredUser = RegisteredUser::with('user')->find($registeredUserId);
 
-            // Récupérer l'utilisateur enregistré directement
-            $registeredUser = RegisteredUser::find($user->userable_id);
-
-            if (!$registeredUser) {
+            if (!$registeredUser || !$registeredUser->user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Utilisateur non trouvé'
                 ], 404);
             }
 
-            // Mettre à jour les informations de base de l'utilisateur
-            if ($request->has('name')) {
-                $user->name = $request->input('name');
-            }
+            $user = $registeredUser->user;
 
-            if ($request->has('phone')) {
-                $user->phone = $request->input('phone');
-            }
+            // 📝 Mettre à jour les infos du modèle User
+            $user->fill($request->only(['name', 'phone']));
 
-            // Mettre à jour les informations de l'utilisateur enregistré
-            if ($request->has('password')) {
+            // 🔐 Si l'utilisateur veut changer son mot de passe
+            if ($request->filled('password')) {
                 $registeredUser->password = Hash::make($request->input('password'));
             }
 
-            if ($request->has('role')) {
-                $registeredUser->role = $request->input('role');
-            }
+            // 🎭 Rôle, statut, solde
+            $registeredUser->fill($request->only(['role', 'status', 'balance']));
 
-            if ($request->has('status')) {
-                $registeredUser->status = $request->input('status');
-            }
-
-            if ($request->has('balance')) {
-                $registeredUser->balance = $request->input('balance');
-            }
-
-            // Gestion de la photo de profil
+            // 📸 Gérer la photo de profil
             if ($request->hasFile('photo')) {
-                // Supprimer l'ancienne photo si elle existe
                 if ($registeredUser->photo) {
                     Storage::disk('public')->delete($registeredUser->photo);
                 }
 
-                // Sauvegarder la nouvelle photo
                 $photoPath = $request->file('photo')->store('profile_photos', 'public');
-                $registeredUser->photo = $photoPath;
+                $registeredUser->photo = '/storage/' . $photoPath;
             }
 
-            // Si l'utilisateur est un organisateur, mettre à jour les informations spécifiques
+            // 🏢 Si c'est un organisateur, mettre à jour les infos spécifiques
             if ($registeredUser->role === 'organizer') {
-                if ($request->has('organization_name')) {
-                    $registeredUser->organization_name = $request->input('organization_name');
-                }
+                $registeredUser->organization_name = $request->input('organization_name');
+                $registeredUser->organization_type = $request->input('organization_type');
 
-                if ($request->has('organization_type')) {
-                    $registeredUser->organization_type = $request->input('organization_type');
-                }
-
-                // Mettre à jour les types d'événements
                 if ($request->has('event_types')) {
                     $registeredUser->categories()->sync($request->input('event_types'));
                 }
             }
 
-            // Sauvegarder les changements
+            // ✅ Sauvegarder les deux modèles
             $user->save();
             $registeredUser->save();
-
-            // Charger les relations pour la réponse
-            $registeredUser->load(['categories', 'user']);
 
             return response()->json([
                 'success' => true,
@@ -328,6 +303,7 @@ class AuthentificationController extends Controller
                     'categories' => $registeredUser->categories
                 ]
             ], 200);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -336,4 +312,5 @@ class AuthentificationController extends Controller
             ], 500);
         }
     }
+
 }
