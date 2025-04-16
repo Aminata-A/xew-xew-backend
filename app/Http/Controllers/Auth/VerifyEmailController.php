@@ -4,56 +4,65 @@ namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
 use App\Mail\SendCodeEmail;
-use Illuminate\Http\Request;
 use App\Models\RegisteredUser;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Redis;
+use App\Http\Requests\Auth\VerifyEmailRequest;
 
 class VerifyEmailController extends Controller
 {
-    public function verify(Request $request)
+    public function verify(VerifyEmailRequest $request)
     {
         $id = null;
-        // Retrieve email from the request
-        $email = $request->input(key: 'email');
-        // dd($email);
+        $email = $request->input('email');
 
-        // Check if email is provided
-        if (!$email) {
-            return response()->json(['error' => 'Email is required'], 400);
-        }
-
-        // Validate the email using regex
-        $emailRegex = "/^[a-zA-Z0-9.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/";
-
-        if (!preg_match($emailRegex, $email)) {
-            return response()->json(['error' => 'Invalid email format'], 400);
-        }
-
-        // Check if the user exists
+        // Vérifier si l'utilisateur existe
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            // Check if the userable relationship is a RegisteredUser
+            // Vérifier si l'utilisateur est un RegisteredUser
             if ($user->userable instanceof RegisteredUser) {
-                return response()->json(['message' => 'User already exists as RegisteredUser'], 200);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Un utilisateur avec cet email existe déjà.'
+                ], 200);
             }
             $id = $user->id;
         }
 
-        // Generate a 6-digit code
+        // Générer un code à 6 chiffres
         $code = rand(100000, 999999);
 
-        // Store the code in Redis with an expiration time (e.g., 10 minutes)
-        Redis::set("verification_code:{$email}", $code, 'EX', 600); // 600 seconds = 10 minutes
+        // Stocker le code dans Redis avec une expiration (10 minutes)
+        $redisKey = "verification_code:{$email}";
 
-        // Send the code to the provided email
-        Mail::to($email)->send(mailable: new SendCodeEmail($code));
+        // Stocker le code comme une chaîne de caractères
+        Redis::set($redisKey, (string)$code);
+        Redis::expire($redisKey, 600); // 10 minutes
 
-        return response()->json(['message' => 'Code sent to the provided email address', 'id' => $id],200);
+        // Vérifier si le code a été correctement stocké
+        $storedCode = Redis::get($redisKey);
+        if (!$storedCode) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du stockage du code.',
+                'debug' => [
+                    'email' => $email,
+                    'code' => $code,
+                    'redis_key' => $redisKey,
+                    'stored_code' => $storedCode
+                ]
+            ], 500);
+        }
 
+        // Envoyer le code par email
+        Mail::to($email)->send(new SendCodeEmail($code));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Code envoyé à l\'adresse email fournie',
+
+        ], 200);
     }
-
-
 }

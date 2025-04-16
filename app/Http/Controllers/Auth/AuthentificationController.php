@@ -5,17 +5,19 @@ namespace App\Http\Controllers\Auth;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Illuminate\Http\Request;
 use App\Models\AnonymousUser;
 use App\Models\RegisteredUser;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 
 class AuthentificationController extends Controller
 {
-    public function register(Request $request)
+    public function register(RegisterRequest $request)
     {
         $jwtSecret = config('jwt.secret');
 
@@ -23,72 +25,37 @@ class AuthentificationController extends Controller
         $token = $request->bearerToken();
 
         if (!$token) {
-            return response()->json(['erreur' => 'Token manquant'], 400);
+            return response()->json([
+                'success' => false,
+                'message' => 'Token manquant'
+            ], 400);
         }
 
         try {
             // Décoder le token pour récupérer l'email
             $decodedToken = JWT::decode($token, new Key($jwtSecret, 'HS256'));
             $email = $decodedToken->email;
-
         } catch (\Exception $e) {
-            return response()->json(['erreur' => 'Token invalide ou expiré'], 401);
-        }
-
-        // Validation manuelle des champs
-        $errors = [];
-
-        if (empty($request->input('name'))) {
-            $errors['name'] = 'Le nom est requis.';
-        } elseif (strlen($request->input('name')) > 100) {
-            $errors['name'] = 'Le nom ne doit pas dépasser 100 caractères.';
-        }
-
-        if (empty($request->input('password'))) {
-            $errors['password'] = 'Le mot de passe est requis.';
-        } elseif (strlen($request->input('password')) < 6) {
-            $errors['password'] = 'Le mot de passe doit contenir au moins 6 caractères.';
-        } elseif ($request->input('password') !== $request->input('password_confirmation')) {
-            $errors['password_confirmation'] = 'La confirmation du mot de passe ne correspond pas.';
-        }
-
-        if (empty($request->input('phone'))) {
-            $errors['phone'] = 'Le numéro de téléphone est requis.';
-        } elseif (strlen($request->input('phone')) > 20) {
-            $errors['phone'] = 'Le numéro de téléphone ne doit pas dépasser 20 caractères.';
-        }else if(!preg_match('/^[0-9]+$/', $request->input('phone'))){
-            $errors['phone'] = 'Le numéro de numéro doit contenir uniquement des chiffres.';
-        }
-
-        if (empty($request->input('role'))) {
-            $errors['role'] = 'Le rôle est requis.';
-        } elseif (!in_array($request->input('role'), ['organizer', 'participant'])) {
-            $errors['role'] = 'Le rôle doit être soit "organizer" soit "participant".';
-        }
-
-        // Vérifier s'il y a des erreurs de validation
-        if (!empty($errors)) {
-            return response()->json(['erreurs' => $errors], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Token invalide ou expiré'
+            ], 401);
         }
 
         // Vérifier si l'utilisateur avec cet email existe déjà
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            return response()->json(['erreur' => 'Un utilisateur avec cet email existe déjà'], 400);
+            return response()->json([
+                'success' => false,
+                'message' => 'Un utilisateur avec cet email existe déjà'
+            ], 400);
         }
 
         // Gestion de l'upload de la photo de profil
         $profilePhotoPath = null;
         if ($request->hasFile('photo')) {
             $photo = $request->file('photo');
-
-            // Validation de la photo
-            $validatedData = $request->validate([
-                'photo' => 'image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB
-            ]);
-
-            // Sauvegarde de la photo dans le répertoire "public/uploads/profile_photos"
             if ($photo->isValid()) {
                 $photoName = time() . '_' . $photo->getClientOriginalName();
                 $profilePhotoPath = $photo->storeAs('uploads/profile_photos', $photoName, 'public');
@@ -99,9 +66,9 @@ class AuthentificationController extends Controller
         $registeredUser = new RegisteredUser([
             'role' => $request->input('role'),
             'password' => Hash::make($request->input('password')),
-            'solde' => 0,
+            'balance' => 0,
             'status' => 'active',
-            'photo' => $profilePhotoPath ? '/storage/' . $profilePhotoPath : null, // Associer la photo si présente
+            'photo' => $profilePhotoPath ? '/storage/' . $profilePhotoPath : null,
         ]);
         $registeredUser->save();
 
@@ -114,34 +81,14 @@ class AuthentificationController extends Controller
         $user->userable()->associate($registeredUser);
         $user->save();
 
-        return response()->json(['message' => 'Inscription réussie'], 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Inscription réussie'
+        ], 201);
     }
 
-
-
-
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        // Validation manuelle des champs
-        $errors = [];
-
-        if (empty($request->input('email'))) {
-            $errors['email'] = 'L\'email est requis.';
-        } elseif (!filter_var($request->input('email'), FILTER_VALIDATE_EMAIL)) {
-            $errors['email'] = 'Format d\'email invalide.';
-        }
-
-        if (empty($request->input('password'))) {
-            $errors['password'] = 'Le mot de passe est requis.';
-        } elseif (strlen($request->input('password')) < 8) {
-            $errors['password'] = 'Le mot de passe doit contenir au moins 8 caractères.';
-        }
-
-        // Vérifier s'il y a des erreurs de validation
-        if (!empty($errors)) {
-            return response()->json(['erreurs' => $errors], 422);
-        }
-
         $email = $request->input('email');
         $password = $request->input('password');
 
@@ -149,121 +96,114 @@ class AuthentificationController extends Controller
         $user = User::where('email', $email)->first();
 
         if (!$user) {
-            return response()->json(['erreur' => 'Email invalide'], 401);
+            return response()->json(['success' => false, 'message' => 'Email invalide'], 401);
         }
 
         // Vérifier si l'utilisateur est un AnonymousUser
         if ($user->userable instanceof AnonymousUser) {
-            return response()->json(['erreur' => "Ce compte n'existe pas"], 401);
+            return response()->json(['success' => false, 'message' => "Ce compte n'existe pas"], 401);
         }
 
         // Vérifier le mot de passe
         $registeredUser = $user->userable;
 
         if (!Hash::check($password, $registeredUser->password)) {
-            return response()->json(['erreur' => 'Mot de passe invalide'], 401);
+            return response()->json(['success' => false, 'message' => 'Mot de passe invalide'], 401);
         }
 
         // Vérifier si le compte est actif
         if ($registeredUser->status !== 'active') {
-            return response()->json(['erreur' => 'Votre compte est inactif'], 401);
+            return response()->json(['success' => false, 'message' => 'Votre compte est inactif'], 401);
         }
 
         // Générer le token JWT
         $token = JWTAuth::fromUser($registeredUser);
 
-        return response()->json(['message' => 'Connexion réussie', 'token' => $token], 200);
+        return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie',
+            'token' => $token
+        ], 200);
     }
 
-
-    public function getUserProfile(Request $request)
+    public function getUserProfile()
     {
         try {
             // Vérifier si un token JWT est présent et authentifier l'utilisateur
             if (! $user = JWTAuth::parseToken()->authenticate()) {
-                return response()->json(['message' => 'Vous devez être connecté pour voir vos informations.'], 401);
+                return response()->json(['success' => false, 'message' => 'Vous devez être connecté pour voir vos informations.'], 401);
             }
 
             // Récupérer les informations utilisateur
-            $userProfile = $user; // Accéder à la relation userable
+            $userProfile = $user;
 
             // Retourner les informations combinées dans un seul tableau
             return response()->json([
-                'id' => $user->id,
-                'name' => $user->user->name ?? $userProfile->user->name,
-                'email' => $user->user->email,
-                'phone' => $user->user->phone,
-                'role' => $userProfile->role ?? null,
-                'balance' => $userProfile->balance ?? null,
-                'status' => $userProfile->status ?? null,
-                'photo' => $userProfile->photo ?? null,
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->user->name ?? $userProfile->user->name,
+                    'email' => $user->user->email,
+                    'phone' => $user->user->phone,
+                    'role' => $userProfile->role ?? null,
+                    'balance' => $userProfile->balance ?? null,
+                    'status' => $userProfile->status ?? null,
+                    'photo' => $userProfile->photo ?? null,
+                ]
             ], 200);
-
         } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-            return response()->json(['error' => 'Token expiré, veuillez vous reconnecter.'], 401);
+            return response()->json(['success' => false, 'message' => 'Token expiré, veuillez vous reconnecter.'], 401);
         } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-            return response()->json(['error' => 'Token invalide.'], 401);
+            return response()->json(['success' => false, 'message' => 'Token invalide.'], 401);
         } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-            return response()->json(['error' => 'Le token est absent.'], 401);
+            return response()->json(['success' => false, 'message' => 'Le token est absent.'], 401);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Erreur lors de la récupération du profil utilisateur : ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la récupération du profil utilisateur.'], 500);
         }
     }
 
-
-
-    public function logout(Request $request)
+    public function logout()
     {
-        $request->user()->token()->revoke();
-        return response()->json(['message' => 'Connexion annulée'], 200);
+        JWTAuth::invalidate(JWTAuth::getToken());
+        return response()->json(['success' => true, 'message' => 'Déconnexion réussie'], 200);
     }
 
-    public function updateProfile(Request $request)
+    public function updateProfile(UpdateProfileRequest $request)
     {
-        // Authentification de l'utilisateur
-        $user = JWTAuth::user();
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
 
-        // Validation des données
-        $validatedData = $request->validate([
-            'name' => 'nullable|string|max:100',
-            'phone' => 'nullable|string|max:20|regex:/^[0-9]+$/',
-            'role' => 'nullable|in:organizer,participant',
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-        ]);
-
-        // Mettre à jour les informations de l'utilisateur
-        if ($request->has('name')) {
-            $user->name = $validatedData['name'];
-        }
-
-        if ($request->has('phone')) {
-            $user->phone = $validatedData['phone'];
-        }
-
-        if ($request->has('role')) {
-            $user->role = $validatedData['role'];
-        }
-
-        // Gestion de la photo de profil
-        if ($request->hasFile('photo')) {
-            // Supprimer l'ancienne photo si elle existe
-            if ($user->photo) {
-                Storage::disk('public')->delete($user->photo);
+            // Mettre à jour les informations de l'utilisateur
+            if ($request->has('name')) {
+                $user->name = $request->input('name');
             }
 
-            // Sauvegarder la nouvelle photo
-            $photoPath = $request->file('photo')->store('profile_photos', 'public');
-            $user->photo = $photoPath;
+            if ($request->has('phone')) {
+                $user->phone = $request->input('phone');
+            }
+
+            // Gestion de la photo de profil
+            if ($request->hasFile('photo')) {
+                // Supprimer l'ancienne photo si elle existe
+                if ($user->photo) {
+                    Storage::disk('public')->delete($user->photo);
+                }
+
+                // Sauvegarder la nouvelle photo
+                $photoPath = $request->file('photo')->store('profile_photos', 'public');
+                $user->photo = $photoPath;
+            }
+
+            // Sauvegarder les changements
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profil mis à jour avec succès',
+                'user' => $user
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la mise à jour du profil.'], 500);
         }
-
-        // Sauvegarder les changements
-        $user->save();
-
-        return response()->json([
-            'message' => 'Profil mis à jour avec succès',
-            'user' => $user
-        ], 200);
     }
-
-
 }
